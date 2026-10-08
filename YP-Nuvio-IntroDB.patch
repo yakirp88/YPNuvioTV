@@ -1,0 +1,1768 @@
+diff --git a/.github/workflows/yp-introdb-build.yml b/.github/workflows/yp-introdb-build.yml
+new file mode 100644
+index 0000000..f2a9fac
+--- /dev/null
++++ b/.github/workflows/yp-introdb-build.yml
+@@ -0,0 +1,47 @@
++name: YP IntroDB build
++on:
++  workflow_dispatch:
++    inputs:
++      publish_release:
++        description: Publish the APKs as a GitHub prerelease
++        type: boolean
++        default: true
++permissions:
++  contents: write
++jobs:
++  build:
++    runs-on: ubuntu-latest
++    timeout-minutes: 40
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-java@v4
++        with:
++          distribution: temurin
++          java-version: '17'
++      - uses: android-actions/setup-android@v3
++      - uses: gradle/actions/setup-gradle@v4
++      - name: Configure public services
++        run: |
++          printf '%s\n' "sdk.dir=$ANDROID_HOME" 'INTRODB_API_URL=https://api.introdb.app/' 'DOVI_NATIVE_ENABLED=false' > local.properties
++          chmod +x gradlew
++      - name: Reporting policy tests and APKs
++        run: >
++          ./gradlew -Pkotlin.compiler.execution.strategy=in-process
++          "-Dorg.gradle.jvmargs=-Xmx5120m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
++          :app:testFullDebugUnitTest --tests com.nuvio.tv.data.introdb.IntroDbReportRulesTest
++          :app:assembleFullDebug --no-daemon --max-workers=1
++      - uses: actions/upload-artifact@v4
++        with:
++          name: YP-Nuvio-IntroDB-debug-apks
++          path: app/build/outputs/apk/full/debug/*.apk
++          if-no-files-found: error
++      - name: Publish APK download links
++        if: ${{ inputs.publish_release }}
++        env:
++          GH_TOKEN: ${{ github.token }}
++        run: >
++          gh release create "yp-introdb-${GITHUB_RUN_NUMBER}"
++          app/build/outputs/apk/full/debug/*.apk
++          --target "$GITHUB_SHA" --prerelease
++          --title "YP Nuvio IntroDB test build ${GITHUB_RUN_NUMBER}"
++          --notes-file YP-INTRODB-RELEASE-NOTES.md
+diff --git a/README.md b/README.md
+index 2ad24cd..1494f7a 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,19 @@
++# YP Nuvio TV — IntroDB reporting
++
++Independent fork of NuvioTV with recap, opening/theme song and credits reporting,
++video thumbnails and boundary correction. Existing segment types are hidden.
++
++**[Download test APKs](https://github.com/yakirp88/YPNuvioTV/releases)** ·
++[Setup, build and validation](YP-INTRODB-README.md)
++
++To install addons: **Addons → Manage from phone**, scan the QR on a phone on
++the same network, paste the manifest URL and confirm on the TV. Official account
++cloud sync is not configured in this build.
++
++The changes and upstream are GPL-3.0. This is not an official Nuvio release.
++
++---
++
+ <div align="center">
+ 
+   <img src="assets/brand/app_logo_wordmark.png" alt="Nuvio" width="300" />
+diff --git a/YP-INTRODB-README.md b/YP-INTRODB-README.md
+new file mode 100644
+index 0000000..f497d49
+--- /dev/null
++++ b/YP-INTRODB-README.md
+@@ -0,0 +1,126 @@
++# YP Nuvio — IntroDB reporting fork
++
++Based on the official `NuvioMedia/NuvioTV` `dev` branch at
++`6377bee8cc644ecd8048a771ced61f06bcdf7946` (1.1.0-beta.5).
++הגרסה מוסיפה דיווח על תקציר, פתיחה וסיום מתוך הנגן: כפתור דגל שומר מיד
++את זמן ההתחלה, בחירת סוג הקטע, כפתורי סיום וביטול צפים, וחלון לתיקון
++הזמנים עם תמונות. סוגים שכבר קיימים במאגר מוסתרים. מפתח API אישי
++מוגדר בהגדרות הניגון ונשמר מוצפן במכשיר.
++
++This is an independent GPL-3.0 fork, with package ID `com.ypmadridista.nuvio`
++(`com.ypmadridista.nuvio.debug` for debug builds). It installs alongside Nuvio.
++
++## What is implemented
++
++* A single flag button in the internal player's main controls. Its click
++  records the current engine position immediately, before choosing a type.
++* A TV-friendly type dialog with **Opening / theme song**, **Recap** and
++  **Ending / credits**. Existing IntroDB types are omitted. Movies expose
++  only credits because IntroDB's movie API supports outros/post-credit scenes.
++* Floating Finish and Cancel buttons while playback continues. Finish records
++  the end and pauses playback. Natural EOF finishes an active recording.
++* Review dialog with start/end timestamps and separate 320px video thumbnails.
++  ±0.5s and ±1s corrections seek precisely and refresh the selected thumbnail.
++* Only the video surface is captured; controls and dialogs are not captured.
++  No images are uploaded to IntroDB. Unsupported/protected surfaces display
++  a clear "Preview unavailable" message instead of an old image.
++* Existing segments are checked independently of automatic skipping. A failed
++  read never enables reporting. Public timestamps refresh every minute while
++  idle, and the selected type is checked again immediately before submitting.
++* After successful submission, that type is hidden locally even if public
++  aggregation has not updated yet. All three present means no report button.
++* Offline/error drafts persist locally. On the next report click, the new click
++  still records its time; the type dialog separately offers Resume saved draft.
++  Save draft and close preserves an unsuccessful report. Cancel discards it.
++* Skipping, post-play and watch-progress writes are suspended during reporting
++  so precision preview seeks do not change progress or start another episode.
++* After send/cancel, playback returns to the point at which Finish was pressed,
++  and resumes if it was originally playing.
++* Hebrew and English strings, remote focus, Settings → Playback → Skip segments
++  toggle and personal IntroDB API-key input. Key is AES-GCM encrypted using
++  Android Keystore, never synced, logged, or bundled into the APK.
++* Reporting requests use a separate HTTPS client with redirects disabled,
++  without stream authorization headers or HTTP logging.
++
++## Setup on Google TV
++
++1. Install the debug ARM64 APK from the build artifacts. It appears as YP Nuvio.
++2. Open Addons → Manage from phone, scan the TV's QR using a phone on the same
++   network, and paste your addon's manifest URL into the local management page.
++   Confirm the proposed change on the TV and keep its management screen open.
++   This works without signing in to the official Nuvio website. The independent
++   build does not configure official account/cloud synchronization.
++3. Open Playback settings → Skip segments → IntroDB reporting API key.
++4. Create your own key at https://introdb.app/ and enter the `idb_…` key.
++   The save action stores the key; the service validates it when submitting.
++5. Play an IMDb-identified series episode in the internal ExoPlayer or MPV.
++6. Show controls, press the flag at the start, choose a missing type, then Finish.
++7. Correct boundaries if necessary and press Send to IntroDB.
++
++The flag is deliberately hidden while a successful existing-segment check is
++pending, for live media, unresolved episode identity, unsupported special-season
++numbering (season 0), disabled reporting, and when every eligible type exists.
++A key can also be entered on first use; after saving it, press the flag again
++at the actual segment start.
++
++## Build locally
++
++Requires JDK 17, Android SDK platform 36, Android build tools 35+, and NDK
++29.0.14206865. Android Studio/Gradle can install missing SDK components.
++
++```
++./gradlew :app:assembleFullDebug
++```
++
++Windows:
++
++```
++gradlew.bat :app:assembleFullDebug
++```
++
++Debug uses the Android debug signing key. Install the ARM64 or universal APK
++from `app/build/outputs/apk/full/debug/`. Keep the signing key for future
++updates of the same installed fork. Do not distribute your private API key.
++
++IntroDB's public endpoint is configured by default. Optional upstream services
++(cloud login/sync, TMDB, Trakt, etc.) require their own build configuration as
++explained by the upstream project; the official application's private build
++configuration is not part of this source distribution.
++
++## GitHub fork and automated build
++
++The GitHub fork is https://github.com/yakirp88/YPNuvioTV.
++The complete source and GPL license are available in the repository.
++
++The `YP IntroDB build` workflow is manual (`workflow_dispatch`). It produces
++signed debug APKs and runs the reporting policy unit tests. Its Publish release
++option creates a GitHub prerelease with public APK download links after a
++successful build. It can be run once these changes are in your fork.
++Automatic upstream APK updates are disabled for this independent signature.
++
++## Validation and limits
++
++* `:app:assembleFullDebug` completed successfully, producing all four ABI APKs
++  and a universal APK. APK v2 signature and independent package/version were
++  verified. Android Lint vital report: no issues found.
++* Full application Kotlin/Java compilation passed. Six reporting-policy JUnit
++  tests passed with zero failures.
++* 19 pure Kotlin reporting-policy checks and a Kotlin lifecycle test exercise
++  capture-before-type-selection, existing-type blocking, paused review,
++  corrected thumbnails, restored playback position, duplicate race checks,
++  failed-read lockout, offline draft persistence and explicit draft cancellation.
++* Lifecycle checks use fake player, bitmap, metadata and network components;
++  they verify the real coordinator but do not verify Android decoding or UI.
++* Real thumbnail rendering, remote navigation, encrypted key persistence, and
++  authenticated submission still need testing on a Google TV device.
++* Thumbnail precision is bounded by source frame rate, decoder, and seek
++  support. A timeout produces no thumbnail rather than a stale one.
++* Existing checks reduce duplicates. A different contributor can still submit
++  between the final GET and POST; server-side duplicate handling is authoritative.
++* IntroDB acceptance/moderation and segment-length validation remain server-side.
++  Recap means "previously on", not a trailer or next-episode preview.
++
++## Licensing
++
++Upstream and changes: GNU GPL v3. See LICENSE. This fork does not claim to be an
++official Nuvio release.
+diff --git a/YP-INTRODB-RELEASE-NOTES.md b/YP-INTRODB-RELEASE-NOTES.md
+new file mode 100644
+index 0000000..ff08f03
+--- /dev/null
++++ b/YP-INTRODB-RELEASE-NOTES.md
+@@ -0,0 +1,22 @@
++# YP Nuvio — IntroDB reporting test build
++
++Choose `app-full-universal-debug.apk` when the device architecture is unknown.
++This independent installation appears as YP Nuvio, alongside the official app.
++
++To install addons, open **Addons → Manage from phone** on the TV. Scan the QR
++using a phone on the same network, paste the addon's manifest URL into that
++local page, and confirm the proposed change on the TV. Keep the management
++screen open until finished. This does not require the official Nuvio account.
++
++Official account/cloud synchronization is not configured in this independent
++build. Addon settings are stored in the fork's own installation.
++
++Configure your own IntroDB API key in Playback settings before submitting.
++Reports support recap, opening/theme song and ending/credits for series;
++movies support ending/credits only. Existing segment types are hidden.
++
++Build, reporting policy tests and Android Lint passed locally. Real Google TV
++thumbnail capture, remote focus and authenticated submission still need device
++testing. See YP-INTRODB-README.md for source/build details and limitations.
++
++Source and modifications are GPL-3.0; this is not an official Nuvio release.
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index ad814d2..448ece3 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -102,15 +102,15 @@ android {
+     ndkVersion = "29.0.14206865"
+ 
+     defaultConfig {
+-        applicationId = "com.nuvio.tv"
++        applicationId = "com.ypmadridista.nuvio"
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+         minSdk = 24
+         targetSdk = 36
+         versionCode = 1068
+-        versionName = "1.1.0-beta.5"
++        versionName = "1.1.0-beta.5-yp-introdb.1"
+ 
+         buildConfigField("String", "PARENTAL_GUIDE_API_URL", "\"${localProperties.getProperty("PARENTAL_GUIDE_API_URL", "")}\"")
+-        buildConfigField("String", "INTRODB_API_URL", "\"${localProperties.getProperty("INTRODB_API_URL", "")}\"")
++        buildConfigField("String", "INTRODB_API_URL", "\"${localProperties.getProperty("INTRODB_API_URL", "https://api.introdb.app/")}\"")
+         buildConfigField("String", "TRAILER_API_URL", "\"${localProperties.getProperty("TRAILER_API_URL", "")}\"")
+         buildConfigField("String", "IMDB_RATINGS_API_BASE_URL", "\"${localProperties.getProperty("IMDB_RATINGS_API_BASE_URL", "")}\"")
+         buildConfigField("String", "IMDB_TAPFRAME_API_BASE_URL", "\"${localProperties.getProperty("IMDB_TAPFRAME_API_BASE_URL", "")}\"")
+@@ -157,7 +157,7 @@ android {
+         create("full") {
+             dimension = "distribution"
+             buildConfigField("boolean", "FEATURE_PLUGINS_ENABLED", "true")
+-            buildConfigField("boolean", "FEATURE_IN_APP_UPDATES_ENABLED", "true")
++            buildConfigField("boolean", "FEATURE_IN_APP_UPDATES_ENABLED", "false")
+             buildConfigField("boolean", "FEATURE_IN_APP_TRAILERS_ENABLED", "true")
+             buildConfigField("boolean", "FEATURE_EXTERNAL_TRAILERS_ENABLED", "true")
+             buildConfigField("boolean", "FEATURE_EXTERNAL_PLAYBACK_KEEP_ALIVE_ENABLED", "true")
+@@ -194,7 +194,7 @@ android {
+ 
+     buildTypes {
+         debug {
+-            signingConfig = signingConfigs.getByName("release")
++            signingConfig = signingConfigs.getByName("debug")
+             isDebuggable = parseBooleanProperty(providers.gradleProperty("debuggable").orNull)
+             isMinifyEnabled = false
+ 
+@@ -208,7 +208,7 @@ android {
+             buildConfigField("String", "TV_LOGIN_WEB_BASE_URL", "\"${devProperties.getProperty("TV_LOGIN_WEB_BASE_URL", "https://nuvio.tv/tv-login")}\"")
+             buildConfigField("String", "DEVICE_LOGIN_WEB_BASE_URL", "\"${devProperties.getProperty("DEVICE_LOGIN_WEB_BASE_URL", "https://nuvio.tv/link")}\"")
+             buildConfigField("String", "PARENTAL_GUIDE_API_URL", "\"${devProperties.getProperty("PARENTAL_GUIDE_API_URL", "")}\"")
+-            buildConfigField("String", "INTRODB_API_URL", "\"${devProperties.getProperty("INTRODB_API_URL", "")}\"")
++            buildConfigField("String", "INTRODB_API_URL", "\"${devProperties.getProperty("INTRODB_API_URL", "https://api.introdb.app/")}\"")
+             buildConfigField("String", "TRAILER_API_URL", "\"${devProperties.getProperty("TRAILER_API_URL", "")}\"")
+             buildConfigField("String", "IMDB_RATINGS_API_BASE_URL", "\"${devProperties.getProperty("IMDB_RATINGS_API_BASE_URL", "")}\"")
+             buildConfigField("String", "IMDB_TAPFRAME_API_BASE_URL", "\"${devProperties.getProperty("IMDB_TAPFRAME_API_BASE_URL", "")}\"")
+@@ -243,7 +243,7 @@ android {
+             buildConfigField("String", "TV_LOGIN_WEB_BASE_URL", "\"${localProperties.getProperty("TV_LOGIN_WEB_BASE_URL", "https://nuvio.tv/tv-login")}\"")
+             buildConfigField("String", "DEVICE_LOGIN_WEB_BASE_URL", "\"${localProperties.getProperty("DEVICE_LOGIN_WEB_BASE_URL", "https://nuvio.tv/link")}\"")
+             buildConfigField("String", "PARENTAL_GUIDE_API_URL", "\"${localProperties.getProperty("PARENTAL_GUIDE_API_URL", "")}\"")
+-            buildConfigField("String", "INTRODB_API_URL", "\"${localProperties.getProperty("INTRODB_API_URL", "")}\"")
++            buildConfigField("String", "INTRODB_API_URL", "\"${localProperties.getProperty("INTRODB_API_URL", "https://api.introdb.app/")}\"")
+             buildConfigField("String", "TRAILER_API_URL", "\"${localProperties.getProperty("TRAILER_API_URL", "")}\"")
+             buildConfigField("String", "IMDB_RATINGS_API_BASE_URL", "\"${localProperties.getProperty("IMDB_RATINGS_API_BASE_URL", "")}\"")
+             buildConfigField("String", "IMDB_TAPFRAME_API_BASE_URL", "\"${localProperties.getProperty("IMDB_TAPFRAME_API_BASE_URL", "")}\"")
+@@ -336,7 +336,7 @@ android {
+ androidComponents {
+     onVariants(selector().withBuildType("debug")) { variant ->
+         val isPlaystore = variant.productFlavors.any { it.second == "playstore" }
+-        variant.applicationId.set(if (isPlaystore) "com.nuvio.appdebug" else "com.nuviodebug.com")
++        variant.applicationId.set(if (isPlaystore) "com.nuvio.appdebug" else "com.ypmadridista.nuvio.debug")
+     }
+ }
+ 
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index df93d3b..09d84ef 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -36,7 +36,7 @@
+         android:allowBackup="false"
+         android:banner="@mipmap/banner"
+         android:icon="@mipmap/ic_launcher"
+-        android:label="@string/app_name"
++        android:label="@string/yp_app_name"
+         android:largeHeap="true"
+         android:extractNativeLibs="true"
+         android:usesCleartextTraffic="true"
+@@ -111,7 +111,7 @@
+             android:enabled="true"
+             android:exported="true"
+             android:icon="@mipmap/ic_launcher"
+-            android:label="@string/app_name"
++            android:label="@string/yp_app_name"
+             android:launchMode="singleTop"
+             android:theme="@style/Theme.MyApplication.Launcher">
+             <intent-filter>
+@@ -128,7 +128,7 @@
+             android:enabled="false"
+             android:exported="true"
+             android:icon="@mipmap/ic_launcher_arctic_blue"
+-            android:label="@string/app_name"
++            android:label="@string/yp_app_name"
+             android:launchMode="singleTop"
+             android:theme="@style/Theme.MyApplication.Launcher">
+             <intent-filter>
+@@ -145,7 +145,7 @@
+             android:enabled="false"
+             android:exported="true"
+             android:icon="@mipmap/ic_launcher_emerald"
+-            android:label="@string/app_name"
++            android:label="@string/yp_app_name"
+             android:launchMode="singleTop"
+             android:theme="@style/Theme.MyApplication.Launcher">
+             <intent-filter>
+@@ -162,7 +162,7 @@
+             android:enabled="false"
+             android:exported="true"
+             android:icon="@mipmap/ic_launcher_rose_gold"
+-            android:label="@string/app_name"
++            android:label="@string/yp_app_name"
+             android:launchMode="singleTop"
+             android:theme="@style/Theme.MyApplication.Launcher">
+             <intent-filter>
+@@ -179,7 +179,7 @@
+             android:enabled="false"
+             android:exported="true"
+             android:icon="@mipmap/ic_launcher_copper"
+-            android:label="@string/app_name"
++            android:label="@string/yp_app_name"
+             android:launchMode="singleTop"
+             android:theme="@style/Theme.MyApplication.Launcher">
+             <intent-filter>
+@@ -196,7 +196,7 @@
+             android:enabled="false"
+             android:exported="true"
+             android:icon="@mipmap/ic_launcher_graphite"
+-            android:label="@string/app_name"
++            android:label="@string/yp_app_name"
+             android:launchMode="singleTop"
+             android:theme="@style/Theme.MyApplication.Launcher">
+             <intent-filter>
+diff --git a/app/src/main/java/com/nuvio/tv/data/introdb/IntroDbReportRepository.kt b/app/src/main/java/com/nuvio/tv/data/introdb/IntroDbReportRepository.kt
+new file mode 100644
+index 0000000..ace56aa
+--- /dev/null
++++ b/app/src/main/java/com/nuvio/tv/data/introdb/IntroDbReportRepository.kt
+@@ -0,0 +1,131 @@
++package com.nuvio.tv.data.introdb
++
++import android.content.Context
++import android.security.keystore.KeyGenParameterSpec
++import android.security.keystore.KeyProperties
++import android.util.Base64
++import com.nuvio.tv.data.remote.api.IntroDbApi
++import com.squareup.moshi.Moshi
++import dagger.hilt.android.qualifiers.ApplicationContext
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import okhttp3.OkHttpClient
++import okhttp3.ResponseBody
++import retrofit2.Response
++import retrofit2.Retrofit
++import retrofit2.converter.moshi.MoshiConverterFactory
++import retrofit2.http.Body
++import retrofit2.http.Header
++import retrofit2.http.POST
++import java.security.KeyStore
++import java.util.concurrent.TimeUnit
++import javax.crypto.Cipher
++import javax.crypto.KeyGenerator
++import javax.crypto.SecretKey
++import javax.crypto.spec.GCMParameterSpec
++import javax.inject.Inject
++import javax.inject.Singleton
++
++interface IntroDbSubmissionApi {
++    @POST("submit")
++    suspend fun submit(@Header("X-API-Key") key: String, @Body body: Map<String, Any>): Response<ResponseBody>
++}
++
++/** Dedicated transport: no media headers, HTTP logging, or cross-host redirects. */
++@Singleton
++class IntroDbReportRepository @Inject constructor(@ApplicationContext context: Context, moshi: Moshi) {
++    private val preferences = context.getSharedPreferences("yp_introdb_private", Context.MODE_PRIVATE)
++    private val retrofit = Retrofit.Builder().baseUrl("https://api.introdb.app/")
++        .client(OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
++            .connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS)
++            .callTimeout(20, TimeUnit.SECONDS).build())
++        .addConverterFactory(MoshiConverterFactory.create(moshi)).build()
++    private val reader = retrofit.create(IntroDbApi::class.java)
++    private val writer = retrofit.create(IntroDbSubmissionApi::class.java)
++
++    var enabled: Boolean
++        get() = preferences.getBoolean("enabled", true)
++        set(value) { preferences.edit().putBoolean("enabled", value).apply() }
++
++    private fun encryptionKey(): SecretKey {
++        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
++        (store.getKey("yp_introdb_api_key", null) as? SecretKey)?.let { return it }
++        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
++            init(KeyGenParameterSpec.Builder("yp_introdb_api_key", KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
++                .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
++        }.generateKey()
++    }
++
++    fun apiKey(): String? = runCatching {
++        val encrypted = preferences.getString("key", null) ?: return null
++        val parts = encrypted.split(":", limit = 2)
++        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
++        cipher.init(Cipher.DECRYPT_MODE, encryptionKey(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
++        String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
++    }.getOrNull()
++
++    fun saveApiKey(value: String) {
++        val key = value.trim()
++        if (key.isEmpty()) { preferences.edit().remove("key").apply(); return }
++        require(key.startsWith("idb_") && !key.any { it.isWhitespace() })
++        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
++        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey())
++        val encrypted = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
++            Base64.encodeToString(cipher.doFinal(key.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
++        check(preferences.edit().putString("key", encrypted).commit())
++    }
++
++    suspend fun existing(media: ReportMedia): Set<ReportSegment> {
++        require(media.valid)
++        val response = reader.getSegments(media.imdbId, media.season, media.episode, media.movie.takeIf { it })
++        // A failed read is never interpreted as permission to submit.
++        if (response.code() == 404 || response.code() == 204) return emptySet()
++        check(response.isSuccessful) { "HTTP_${response.code()}" }
++        val body = response.body() ?: error("EMPTY_RESPONSE")
++        return buildSet {
++            if (body.intro != null) add(ReportSegment.INTRO)
++            if (body.recap != null) add(ReportSegment.RECAP)
++            if (body.outro != null) add(ReportSegment.OUTRO)
++        }
++    }
++
++    /** Returns false if another contributor filled this segment in the meantime. */
++    suspend fun submit(media: ReportMedia, segment: ReportSegment, start: Long, end: Long, duration: Long): Boolean {
++        require(media.valid && IntroDbReportRules.validRange(start, end, duration))
++        check(segment in IntroDbReportRules.available(media, emptySet()))
++        val key = withContext(Dispatchers.IO) { apiKey() } ?: error("NO_KEY")
++        if (segment in existing(media)) return false
++        val body = mutableMapOf<String, Any>("imdb_id" to media.imdbId, "segment_type" to segment.apiName,
++            "start_sec" to start / 1000.0, "end_sec" to end / 1000.0)
++        if (media.movie) body["is_movie"] = true else {
++            body["season"] = requireNotNull(media.season); body["episode"] = requireNotNull(media.episode)
++        }
++        val response = writer.submit(key, body)
++        response.body()?.close()
++        response.errorBody()?.close()
++        if (response.code() == 409) return false
++        check(response.isSuccessful) { "HTTP_${response.code()}" }
++        return true
++    }
++
++    data class Draft(val segment: ReportSegment, val start: Long, val end: Long, val duration: Long)
++
++    fun draft(media: ReportMedia): Draft? = runCatching {
++        val parts = preferences.getString("draft:${media.key}", null)?.split(":") ?: return null
++        Draft(ReportSegment.valueOf(parts[0]), parts[1].toLong(), parts[2].toLong(), parts[3].toLong())
++            .takeIf { IntroDbReportRules.validRange(it.start, it.end, it.duration) }
++    }.getOrNull()
++
++    fun saveDraft(media: ReportMedia, segment: ReportSegment, start: Long, end: Long, duration: Long) {
++        preferences.edit().putString("draft:${media.key}", "${segment.name}:$start:$end:$duration").apply()
++    }
++
++    fun removeDraft(media: ReportMedia) { preferences.edit().remove("draft:${media.key}").apply() }
++
++    fun submitted(media: ReportMedia): Set<ReportSegment> = preferences.getStringSet("submitted:${media.key}", emptySet())
++        .orEmpty().mapNotNull { name -> ReportSegment.entries.find { it.apiName == name } }.toSet()
++
++    fun markSubmitted(media: ReportMedia, segment: ReportSegment) {
++        preferences.edit().putStringSet("submitted:${media.key}", (submitted(media) + segment).map { it.apiName }.toSet()).apply()
++    }
++}
+diff --git a/app/src/main/java/com/nuvio/tv/data/introdb/IntroDbReportRules.kt b/app/src/main/java/com/nuvio/tv/data/introdb/IntroDbReportRules.kt
+new file mode 100644
+index 0000000..e28122e
+--- /dev/null
++++ b/app/src/main/java/com/nuvio/tv/data/introdb/IntroDbReportRules.kt
+@@ -0,0 +1,24 @@
++package com.nuvio.tv.data.introdb
++
++/** Pure policy, shared by the UI and submission path. */
++enum class ReportSegment(val apiName: String) { INTRO("intro"), RECAP("recap"), OUTRO("outro") }
++
++data class ReportMedia(val imdbId: String, val season: Int? = null, val episode: Int? = null, val movie: Boolean = false) {
++    val key: String get() = "$imdbId:${if (movie) "movie" else "$season:$episode"}"
++    val valid: Boolean get() = Regex("tt[0-9]{7,8}").matches(imdbId) &&
++        (movie || (season != null && season >= 1 && episode != null && episode > 0))
++}
++
++object IntroDbReportRules {
++    fun available(media: ReportMedia, existing: Set<ReportSegment>): Set<ReportSegment> =
++        (if (media.movie) setOf(ReportSegment.OUTRO) else ReportSegment.entries.toSet()) - existing
++
++    fun validRange(startMs: Long, endMs: Long, durationMs: Long): Boolean =
++        durationMs > 0 && startMs >= 0 && endMs > startMs && endMs <= durationMs
++
++    fun adjust(startMs: Long, endMs: Long, durationMs: Long, start: Boolean, deltaMs: Long): Pair<Long, Long> {
++        if (!validRange(startMs, endMs, durationMs)) return startMs to endMs
++        return if (start) (startMs + deltaMs).coerceIn(0, endMs - 1) to endMs
++        else startMs to (endMs + deltaMs).coerceIn(startMs + 1, durationMs)
++    }
++}
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbFrameCapture.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbFrameCapture.kt
+new file mode 100644
+index 0000000..b106182
+--- /dev/null
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbFrameCapture.kt
+@@ -0,0 +1,77 @@
++@file:Suppress("UnsafeOptInUsageError")
++package com.nuvio.tv.ui.screens.player
++
++import android.graphics.Bitmap
++import android.os.Build
++import android.os.Handler
++import android.os.Looper
++import android.view.PixelCopy
++import android.view.SurfaceView
++import android.view.TextureView
++import androidx.media3.common.Player
++import androidx.media3.exoplayer.SeekParameters
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.suspendCancellableCoroutine
++import kotlinx.coroutines.withTimeoutOrNull
++import kotlin.coroutines.resume
++import kotlin.math.abs
++
++/** Copies only the video surface, so dialogs/controls never appear in the thumbnail. */
++internal suspend fun PlayerRuntimeController.captureReportFrame(atMs: Long? = null): Bitmap? = try {
++    captureReportFrameInternal(atMs)
++} catch (cancel: kotlinx.coroutines.CancellationException) {
++    throw cancel
++} catch (_: Exception) {
++    null
++}
++
++private suspend fun PlayerRuntimeController.captureReportFrameInternal(atMs: Long?): Bitmap? {
++    if (atMs != null) {
++        setPlaybackPaused(true)
++        if (isUsingMpvEngine()) {
++            val view = mpvView ?: return null
++            view.seekReportFrame(atMs)
++            val settled = withTimeoutOrNull(5000L) {
++                while (!view.isReportSeekSettled(atMs)) delay(30)
++                // Allow the surface compositor to consume the settled frame.
++                delay(80)
++                true
++            } ?: false
++            if (!settled) return null
++        } else {
++            val player = _exoPlayer ?: return null
++            val rendered = CompletableDeferred<Unit>()
++            val listener = object : Player.Listener {
++                override fun onRenderedFirstFrame() {
++                    if (abs(player.currentPosition - atMs) <= 250L) rendered.complete(Unit)
++                }
++            }
++            player.addListener(listener)
++            val previousSeekParameters = player.seekParameters
++            try {
++                // Exact seek bypasses the app's normal keyframe/scrubbing performance path.
++                player.setSeekParameters(SeekParameters.EXACT)
++                player.seekTo(atMs.coerceAtMost((player.duration - 1).coerceAtLeast(0)))
++                if (withTimeoutOrNull(5000L) { rendered.await(); true } != true) return null
++                delay(50)
++            } finally {
++                player.removeListener(listener)
++                player.setSeekParameters(previousSeekParameters)
++            }
++        }
++    }
++    val surface = if (isUsingMpvEngine()) mpvView else exoPlayerView?.videoSurfaceView
++    if (surface is TextureView) return surface.getBitmap(320, 180)
++    if (surface !is SurfaceView || Build.VERSION.SDK_INT < 24 || !surface.holder.surface.isValid) return null
++    val height = if (surface.width > 0) (320.0 * surface.height / surface.width).toInt().coerceIn(1, 320) else 180
++    val bitmap = Bitmap.createBitmap(320, height, Bitmap.Config.ARGB_8888)
++    return suspendCancellableCoroutine { continuation ->
++        try {
++            PixelCopy.request(surface, bitmap, { status ->
++                if (continuation.isActive) continuation.resume(if (status == PixelCopy.SUCCESS) bitmap else null)
++                // Do not recycle: a cancelled callback can still be writing to this bitmap.
++            }, Handler(Looper.getMainLooper()))
++        } catch (_: IllegalArgumentException) { if (continuation.isActive) continuation.resume(null) }
++    }
++}
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbReportCoordinator.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbReportCoordinator.kt
+new file mode 100644
+index 0000000..c3b5b3b
+--- /dev/null
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbReportCoordinator.kt
+@@ -0,0 +1,228 @@
++package com.nuvio.tv.ui.screens.player
++
++import android.graphics.Bitmap
++import com.nuvio.tv.data.introdb.IntroDbReportRepository
++import com.nuvio.tv.data.introdb.IntroDbReportRules
++import com.nuvio.tv.data.introdb.ReportMedia
++import com.nuvio.tv.data.introdb.ReportSegment
++import com.nuvio.tv.domain.repository.MetaRepository
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import kotlinx.coroutines.withTimeoutOrNull
++
++enum class ReportStage { IDLE, CHOOSE, RECORDING, REVIEW }
++data class IntroDbReportState(
++    val media: ReportMedia? = null,
++    val checking: Boolean = true,
++    val available: Set<ReportSegment> = emptySet(),
++    val stage: ReportStage = ReportStage.IDLE,
++    val segment: ReportSegment? = null,
++    val startMs: Long = 0,
++    val endMs: Long = 0,
++    val durationMs: Long = 0,
++    val startImage: Bitmap? = null,
++    val endImage: Bitmap? = null,
++    val previewing: Boolean = false,
++    val sending: Boolean = false,
++    val message: String? = null
++) {
++    val active get() = stage != ReportStage.IDLE
++    val canStart get() = !checking && media != null && available.isNotEmpty() && !active
++}
++
++internal class IntroDbReportCoordinator(
++    private val controller: PlayerRuntimeController,
++    private val repository: IntroDbReportRepository,
++    private val metadata: MetaRepository,
++    private val scope: CoroutineScope
++) {
++    private val mutable = MutableStateFlow(IntroDbReportState())
++    val state = mutable.asStateFlow()
++    private var request: Job? = null
++    private var preview: Job? = null
++    private var originalEnd = 0L
++    private var resumeAfterReview = false
++    private var mediaIdentity = ""
++
++    fun hasApiKey() = repository.apiKey() != null
++    fun saveApiKey(value: String) = repository.saveApiKey(value)
++
++    fun load(force: Boolean = false) {
++        val c = controller
++        val identity = "${c.contentId}:${c.currentVideoId}:${c.currentSeason}:${c.currentEpisode}"
++        if (!force && identity == mediaIdentity) return
++        mediaIdentity = identity
++        request?.cancel(); preview?.cancel()
++        setActive(false)
++        mutable.value = IntroDbReportState()
++        request = scope.launch {
++            try {
++                val type = c.contentType.orEmpty()
++                if (!repository.enabled || type !in setOf("movie", "series", "tv") || c.playbackTimeline.value.isLive) {
++                    mutable.update { it.copy(checking = false) }; return@launch
++                }
++                val id = c.contentId.orEmpty()
++                val video = c.currentVideoId.orEmpty()
++                val imdb = listOf(video.substringBefore(':'), id.substringBefore(':'),
++                    metadata.getCachedMeta(type, id)?.imdbId.orEmpty())
++                    .firstOrNull { Regex("tt[0-9]{7,8}").matches(it) }
++                val media = imdb?.let { ReportMedia(it, if (type == "movie") null else c.currentSeason,
++                    if (type == "movie") null else c.currentEpisode, type == "movie") }
++                if (media?.valid != true) { mutable.update { it.copy(checking = false) }; return@launch }
++                val existing = withTimeoutOrNull(20_000L) { repository.existing(media) } ?: error("CHECK_TIMEOUT")
++                mutable.value = IntroDbReportState(media = media, checking = false,
++                    available = IntroDbReportRules.available(media, existing + repository.submitted(media)))
++            } catch (cancel: CancellationException) { throw cancel }
++            catch (_: Exception) { mutable.update { it.copy(checking = false, message = "check_failed") } }
++        }
++    }
++
++    /** Called synchronously by the button, BEFORE choosing a segment or doing IO. */
++    fun begin(capturedPositionMs: Long? = null) {
++        val position = capturedPositionMs ?: controller.currentPlaybackPositionMs() ?: return
++        val s = mutable.value
++        if (!s.canStart || !hasApiKey()) return
++        val duration = controller.currentPlaybackDurationMs()
++        if (duration <= 0 || controller.playbackTimeline.value.isLive) return
++        resumeAfterReview = controller.hasActivePlayIntent()
++        setActive(true)
++        mutable.update { it.copy(stage = ReportStage.CHOOSE, startMs = position.coerceIn(0, duration),
++            durationMs = duration, message = null) }
++        controller.hideControls()
++        // Thumbnails are reconstructed at the saved boundaries after Finish.
++    }
++
++    fun hasDraft(): Boolean {
++        val s = mutable.value
++        return s.media?.let { repository.draft(it)?.segment in s.available } == true
++    }
++
++    fun resumeDraft() {
++        val s = mutable.value
++        if (s.stage != ReportStage.CHOOSE) return
++        val draft = s.media?.let { repository.draft(it) } ?: return
++        if (draft.segment !in s.available || !IntroDbReportRules.validRange(draft.start, draft.end, s.durationMs)) return
++        originalEnd = controller.currentPlaybackPositionMs() ?: s.startMs
++        controller.setPlaybackPaused(true)
++        mutable.update { it.copy(stage = ReportStage.REVIEW, segment = draft.segment, startMs = draft.start,
++            endMs = draft.end, previewing = true, message = null) }
++        preview = scope.launch {
++            val start = controller.captureReportFrame(draft.start)
++            mutable.update { it.copy(startImage = start) }
++            val end = controller.captureReportFrame(draft.end)
++            mutable.update { it.copy(endImage = end, previewing = false) }
++        }
++    }
++
++    fun choose(segment: ReportSegment) {
++        if (mutable.value.stage != ReportStage.CHOOSE || segment !in mutable.value.available) return
++        mutable.update { it.copy(stage = ReportStage.RECORDING, segment = segment) }
++        controller.setPlaybackPaused(false)
++    }
++
++    fun finish() {
++        val s = mutable.value
++        if (s.stage != ReportStage.RECORDING) return
++        val end = controller.currentPlaybackPositionMs() ?: return
++        if (!IntroDbReportRules.validRange(s.startMs, end, s.durationMs)) {
++            mutable.update { it.copy(message = "invalid_range") }; return
++        }
++        originalEnd = end
++        s.media?.let { repository.saveDraft(it, requireNotNull(s.segment), s.startMs, end, s.durationMs) }
++        controller.setPlaybackPaused(true)
++        mutable.update { it.copy(stage = ReportStage.REVIEW, endMs = end, previewing = true, message = null) }
++        preview?.cancel()
++        preview = scope.launch {
++            val start = controller.captureReportFrame(s.startMs)
++            mutable.update { it.copy(startImage = start) }
++            val finish = controller.captureReportFrame(end)
++            mutable.update { it.copy(endImage = finish, previewing = false) }
++        }
++    }
++
++    fun adjust(start: Boolean, delta: Long) {
++        val s = mutable.value
++        if (s.stage != ReportStage.REVIEW || s.sending || s.previewing) return
++        val (newStart, newEnd) = IntroDbReportRules.adjust(s.startMs, s.endMs, s.durationMs, start, delta)
++        mutable.update { it.copy(startMs = newStart, endMs = newEnd, previewing = true,
++            startImage = if (start) null else it.startImage, endImage = if (start) it.endImage else null, message = null) }
++        s.media?.let { repository.saveDraft(it, requireNotNull(s.segment), newStart, newEnd, s.durationMs) }
++        preview?.cancel()
++        preview = scope.launch {
++            val frame = controller.captureReportFrame(if (start) newStart else newEnd)
++            mutable.update { it.copy(previewing = false, startImage = if (start) frame else it.startImage,
++                endImage = if (start) it.endImage else frame) }
++        }
++    }
++
++    fun send() {
++        val s = mutable.value
++        val media = s.media ?: return
++        val segment = s.segment ?: return
++        if (s.stage != ReportStage.REVIEW || s.sending || s.previewing) return
++        mutable.update { it.copy(sending = true, message = null) }
++        request = scope.launch {
++            try {
++                val sent = repository.submit(media, segment, s.startMs, s.endMs, s.durationMs)
++                repository.markSubmitted(media, segment)
++                repository.removeDraft(media)
++                val remaining = mutable.value.available - segment
++                close(restore = true)
++                mutable.update { it.copy(available = remaining, message = if (sent) "sent" else "exists") }
++            } catch (cancel: CancellationException) { throw cancel }
++            catch (failure: Exception) {
++                mutable.update { it.copy(sending = false, message = when (failure.message) {
++                    "NO_KEY", "HTTP_401", "HTTP_403" -> "key_failed"
++                    "HTTP_429" -> "rate_limit"
++                    "HTTP_400", "HTTP_422" -> "rejected"
++                    else -> "send_failed"
++                }) }
++            }
++        }
++    }
++
++    fun keepDraft() { if (!mutable.value.sending) close(restore = true) }
++
++    fun cancel() {
++        if (mutable.value.sending) return
++        // Explicit cancel discards the draft. Disposal/offline failure preserves it.
++        mutable.value.media?.let { repository.removeDraft(it) }
++        close(restore = true)
++    }
++    fun dispose() { request?.cancel(); preview?.cancel(); close(restore = false) }
++    fun clearMessage() { mutable.update { it.copy(message = null) } }
++
++    private fun close(restore: Boolean) {
++        val s = mutable.value
++        preview?.cancel()
++        if (restore && s.stage == ReportStage.REVIEW) {
++            controller.seekPlaybackTo(originalEnd)
++            if (resumeAfterReview) controller.setPlaybackPaused(false)
++        }
++        setActive(false)
++        mutable.update { it.copy(stage = ReportStage.IDLE, segment = null, startImage = null, endImage = null,
++            previewing = false, sending = false, message = null) }
++        if (restore) controller.scheduleHideControls()
++    }
++
++    private fun setActive(active: Boolean) {
++        if (!active) {
++            controller._uiState.update { it.copy(introDbReportingActive = false) }
++            return
++        }
++        controller._uiState.update { it.copy(introDbReportingActive = true, activeSkipInterval = null,
++            showPauseOverlay = false, postPlayMode = null) }
++        if (active) {
++            controller.nextEpisodeAutoPlayJob?.cancel()
++            controller.nextEpisodeAutoPlayJob = null
++            controller.pauseOverlayJob?.cancel()
++        }
++    }
++}
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbReportOverlay.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbReportOverlay.kt
+new file mode 100644
+index 0000000..3e07d06
+--- /dev/null
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/IntroDbReportOverlay.kt
+@@ -0,0 +1,194 @@
++@file:OptIn(androidx.tv.material3.ExperimentalTvMaterial3Api::class)
++package com.nuvio.tv.ui.screens.player
++
++import android.app.AlertDialog
++import android.content.Context
++import android.content.Intent
++import android.net.Uri
++import android.text.InputType
++import android.widget.EditText
++import android.widget.LinearLayout
++import android.widget.TextView
++import android.widget.Toast
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.runtime.*
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.focus.FocusRequester
++import androidx.compose.ui.focus.focusRequester
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.asImageBitmap
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.window.Dialog
++import androidx.compose.ui.window.DialogProperties
++import androidx.tv.material3.Button
++import androidx.tv.material3.MaterialTheme
++import androidx.tv.material3.Text
++import com.nuvio.tv.R
++import com.nuvio.tv.ui.screens.detail.requestFocusAfterFrames
++import com.nuvio.tv.data.introdb.IntroDbReportRepository
++import com.nuvio.tv.data.introdb.ReportSegment
++import java.util.Locale
++
++internal fun ReportSegment.labelResource(): Int = when (this) {
++    ReportSegment.INTRO -> R.string.yp_report_intro
++    ReportSegment.RECAP -> R.string.yp_report_recap
++    ReportSegment.OUTRO -> R.string.yp_report_outro
++}
++
++/** Input stays on-device; never puts a credential in an Intent, URL, or logging call. */
++internal fun showIntroDbKeyDialog(context: Context, repository: IntroDbReportRepository, onSaved: () -> Unit = {}) {
++    val input = EditText(context).apply {
++        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
++        isSingleLine = true
++        hint = "idb_…"
++    }
++    val panel = LinearLayout(context).apply {
++        orientation = LinearLayout.VERTICAL
++        setPadding(32, 12, 32, 12)
++        addView(TextView(context).apply { text = context.getString(R.string.yp_report_key_info) })
++        addView(input)
++    }
++    val dialog = AlertDialog.Builder(context)
++        .setTitle(R.string.yp_report_key_title).setView(panel)
++        .setPositiveButton(R.string.yp_report_save, null)
++        .setNegativeButton(R.string.yp_report_cancel, null)
++        .setNeutralButton(R.string.yp_report_get_key) { _, _ ->
++            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://introdb.app/"))) }
++                .onFailure { Toast.makeText(context, "https://introdb.app/", Toast.LENGTH_LONG).show() }
++        }.create()
++    dialog.setOnShowListener {
++        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
++            val saved = runCatching { repository.saveApiKey(input.text.toString()) }.isSuccess
++            if (saved) { input.text.clear(); dialog.dismiss(); onSaved() }
++            else input.error = context.getString(R.string.yp_report_key_failed)
++        }
++    }
++    dialog.setOnDismissListener { input.text.clear() }
++    dialog.show()
++}
++
++@Composable
++internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroDbReportCoordinator, onConfigureKey: () -> Unit) {
++    val firstFocus = remember(state.stage) { FocusRequester() }
++    var initialFocusPlaced by remember(state.stage) { mutableStateOf(false) }
++    LaunchedEffect(state.stage, state.previewing) {
++        if (state.active && !initialFocusPlaced && !(state.stage == ReportStage.REVIEW && state.previewing)) {
++            firstFocus.requestFocusAfterFrames()
++            initialFocusPlaced = true
++        }
++    }
++    when (state.stage) {
++        ReportStage.IDLE -> Unit
++        ReportStage.CHOOSE -> Dialog(onDismissRequest = coordinator::cancel) {
++            Column(Modifier.width(520.dp).background(Color(0xFF18202E), RoundedCornerShape(20.dp)).padding(24.dp),
++                verticalArrangement = Arrangement.spacedBy(12.dp)) {
++                Text(stringResource(R.string.yp_report_choose), style = MaterialTheme.typography.titleLarge)
++                Text(stringResource(R.string.yp_report_saved_start, reportTime(state.startMs)))
++                state.available.sortedBy { it.ordinal }.forEachIndexed { index, segment ->
++                    Button(onClick = { coordinator.choose(segment) },
++                        modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier) {
++                        Text(stringResource(segment.labelResource()))
++                    }
++                }
++                if (coordinator.hasDraft()) {
++                    Button(onClick = coordinator::resumeDraft) { Text(stringResource(R.string.yp_report_resume_draft)) }
++                }
++                Button(onClick = coordinator::cancel) { Text(stringResource(R.string.yp_report_cancel)) }
++            }
++        }
++        ReportStage.RECORDING -> Box(Modifier.fillMaxSize()) {
++            Column(Modifier.align(Alignment.BottomEnd).padding(36.dp)
++                .background(Color(0xEE18202E), RoundedCornerShape(16.dp)).padding(16.dp),
++                verticalArrangement = Arrangement.spacedBy(8.dp)) {
++                Text(stringResource(state.segment!!.labelResource()) + " · " + reportTime(state.startMs))
++                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++                    Button(onClick = coordinator::finish, modifier = Modifier.focusRequester(firstFocus)) {
++                        Text(stringResource(R.string.yp_report_finish))
++                    }
++                    Button(onClick = coordinator::cancel) { Text(stringResource(R.string.yp_report_cancel)) }
++                }
++                ReportMessage(state.message)
++            }
++        }
++        ReportStage.REVIEW -> Dialog(onDismissRequest = coordinator::cancel,
++            properties = DialogProperties(usePlatformDefaultWidth = false,
++                dismissOnBackPress = !state.sending, dismissOnClickOutside = false)) {
++            Column(Modifier.widthIn(max = 760.dp).fillMaxWidth(0.9f)
++                .background(Color(0xFF18202E), RoundedCornerShape(20.dp)).padding(20.dp),
++                verticalArrangement = Arrangement.spacedBy(12.dp)) {
++                Text(stringResource(R.string.yp_report_review), style = MaterialTheme.typography.titleLarge)
++                val media = state.media!!
++                Text(media.imdbId + if (media.movie) "" else " · S${media.season} E${media.episode}")
++                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
++                    ReportBoundary(state, true, coordinator, Modifier.weight(1f), firstFocus)
++                    ReportBoundary(state, false, coordinator, Modifier.weight(1f), null)
++                }
++                if (state.previewing) Text(stringResource(R.string.yp_report_loading_frame))
++                ReportMessage(state.message)
++                if (state.message == "key_failed") {
++                    Button(onClick = onConfigureKey) { Text(stringResource(R.string.yp_report_key_title)) }
++                }
++                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++                    Button(onClick = coordinator::send, enabled = !state.sending && !state.previewing) {
++                        Text(stringResource(if (state.sending) R.string.yp_report_sending else R.string.yp_report_send))
++                    }
++                    if (state.message != null) {
++                        Button(onClick = coordinator::keepDraft, enabled = !state.sending) {
++                            Text(stringResource(R.string.yp_report_keep_draft))
++                        }
++                    }
++                    Button(onClick = coordinator::cancel, enabled = !state.sending) {
++                        Text(stringResource(R.string.yp_report_cancel))
++                    }
++                }
++            }
++        }
++    }
++}
++
++@Composable
++private fun ReportBoundary(state: IntroDbReportState, start: Boolean, coordinator: IntroDbReportCoordinator,
++    modifier: Modifier, focus: FocusRequester?) {
++    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
++        Text(stringResource(if (start) R.string.yp_report_start else R.string.yp_report_end) + ": " +
++            reportTime(if (start) state.startMs else state.endMs))
++        val bitmap = if (start) state.startImage else state.endImage
++        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(Color.Black), contentAlignment = Alignment.Center) {
++            if (bitmap != null) Image(bitmap.asImageBitmap(), stringResource(R.string.yp_report_frame), Modifier.fillMaxSize())
++            else Text(stringResource(if (state.previewing) R.string.yp_report_loading_frame else R.string.yp_report_frame_unavailable),
++                modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
++        }
++        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
++            listOf(-1000L, -500L, 500L, 1000L).forEachIndexed { index, delta ->
++                Button(onClick = { coordinator.adjust(start, delta) }, enabled = !state.sending,
++                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
++                    modifier = if (index == 0 && focus != null) Modifier.focusRequester(focus) else Modifier) {
++                    Text(if (delta < 0) "${delta / 1000.0}s" else "+${delta / 1000.0}s")
++                }
++            }
++        }
++    }
++}
++
++@Composable
++internal fun ReportMessage(message: String?) {
++    val resource = when (message) {
++        "sent" -> R.string.yp_report_sent
++        "exists" -> R.string.yp_report_exists
++        "check_failed" -> R.string.yp_report_check_failed
++        "key_failed" -> R.string.yp_report_key_failed
++        "rate_limit" -> R.string.yp_report_rate_limit
++        "invalid_range", "rejected" -> R.string.yp_report_invalid_range
++        "send_failed" -> R.string.yp_report_send_failed
++        else -> null
++    }
++    if (resource != null) Text(stringResource(resource))
++}
++
++internal fun reportTime(ms: Long): String = String.format(Locale.ROOT, "%02d:%02d:%02d.%03d",
++    ms / 3600000, ms / 60000 % 60, ms / 1000 % 60, ms % 1000)
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt
+index 04b7ec4..e65cdef 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/NuvioMpvSurfaceView.kt
+@@ -222,6 +222,15 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
+         mpv.setPropertyDouble("time-pos", seconds)
+     }
+ 
++    internal fun seekReportFrame(positionMs: Long) {
++        if (!initialized) return
++        mpv.command("seek", (positionMs / 1000.0).toString(), "absolute+exact")
++    }
++
++    internal fun isReportSeekSettled(positionMs: Long): Boolean = initialized &&
++        mpv.getPropertyBoolean("seeking") != true &&
++        kotlin.math.abs(currentPositionMs() - positionMs) <= 250L
++
+     fun currentPositionMs(): Long {
+         if (!initialized) return 0L
+         val seconds = mpv.getPropertyDouble("time-pos/full")
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt
+index e1a0aed..53ac7ee 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerMetadata.kt
+@@ -354,6 +354,7 @@ internal fun PlayerRuntimeController.resetPostPlayOverlayState(clearEpisode: Boo
+ }
+ 
+ internal fun PlayerRuntimeController.evaluatePostPlayOverlayVisibility(positionMs: Long, durationMs: Long) {
++    if (_uiState.value.introDbReportingActive) return
+     if (_playbackTimeline.value.isLive) return
+     if (!hasRenderedFirstFrame) return
+     // Short debrid/error clips must never arm next-episode auto-play (see #2819).
+@@ -458,6 +459,7 @@ internal fun PlayerRuntimeController.showStreamSourceIndicator(stream: Stream) {
+ }
+ 
+ internal fun PlayerRuntimeController.updateActiveSkipInterval(positionMs: Long) {
++    if (_uiState.value.introDbReportingActive) return
+     if (skipIntervals.isEmpty()) {
+         if (_uiState.value.activeSkipInterval != null) {
+             _uiState.update { it.copy(activeSkipInterval = null, skipIntervalDismissed = false) }
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerPlaybackEvents.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerPlaybackEvents.kt
+index 36beed3..2c09e04 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerPlaybackEvents.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerPlaybackEvents.kt
+@@ -607,6 +607,7 @@ private fun String.reportSafeHost(): String {
+ }
+ 
+ internal fun PlayerRuntimeController.saveWatchProgressIfNeeded() {
++    if (_uiState.value.introDbReportingActive) return
+     if (!hasRenderedFirstFrame) return
+     val currentPosition = currentPlaybackPositionMs() ?: return
+     val duration = getEffectiveDuration(currentPosition)
+@@ -622,6 +623,7 @@ internal fun PlayerRuntimeController.saveWatchProgressIfNeeded() {
+ }
+ 
+ internal fun PlayerRuntimeController.saveWatchProgress() {
++    if (_uiState.value.introDbReportingActive) return
+     if (!hasRenderedFirstFrame) return
+     val currentPosition = currentPlaybackPositionMs() ?: return
+     val duration = getEffectiveDuration(currentPosition)
+@@ -656,6 +658,7 @@ private fun PlayerRuntimeController.isShortPlaceholderStream(): Boolean {
+  * watched or trigger auto-play next.
+  */
+ internal fun PlayerRuntimeController.handleNaturalPlaybackEnded() {
++    if (_uiState.value.introDbReportingActive) return
+     val position = currentPlaybackPositionMs() ?: 0L
+     val duration = getEffectiveDuration(position)
+     val hasFatalError = !_uiState.value.error.isNullOrBlank()
+@@ -699,6 +702,7 @@ internal fun PlayerRuntimeController.cancelNextEpisodeAutoPlayOnFatalError() {
+ }
+ 
+ internal fun PlayerRuntimeController.saveWatchProgressInternal(position: Long, duration: Long, syncRemote: Boolean = true) {
++    if (_uiState.value.introDbReportingActive) return
+     if (contentType.equals("cloud", ignoreCase = true)) {
+         saveCloudLibraryProgress(position, duration, completed = false)
+         return
+@@ -1132,7 +1136,7 @@ internal fun PlayerRuntimeController.schedulePauseOverlay() {
+             s.showSpeedDialog || s.showMoreDialog || s.showEpisodesPanel ||
+             s.showSourcesPanel || s.showAudioOverlay || s.showStreamInfoOverlay ||
+             s.showSubtitleTimingDialog || s.showSubtitleDelayOverlay
+-        if (!s.isPlaying && s.pauseOverlayEnabled && s.error == null && !anyPanelOpen) {
++        if (!s.introDbReportingActive && !s.isPlaying && s.pauseOverlayEnabled && s.error == null && !anyPanelOpen) {
+             _uiState.update { it.copy(showPauseOverlay = true, showControls = false) }
+         }
+     }
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerStreams.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerStreams.kt
+index bf5b282..6f56654 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerStreams.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerStreams.kt
+@@ -1727,6 +1727,7 @@ internal fun PlayerRuntimeController.cancelNextEpisodePreload() {
+ }
+ 
+ internal fun PlayerRuntimeController.playNextEpisode(userInitiated: Boolean = false) {
++    if (_uiState.value.introDbReportingActive && !userInitiated) return
+     val nextVideo = nextEpisodeVideo ?: return
+     val type = contentType ?: return
+     nextEpisodePreloadTriggered = false
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt
+index ac320ab..fc6e71c 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerScreen.kt
+@@ -60,6 +60,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
+ import androidx.compose.material.icons.automirrored.filled.VolumeUp
+ import androidx.compose.material.icons.filled.AspectRatio
+ import androidx.compose.material.icons.filled.BugReport
++import androidx.compose.material.icons.filled.Flag
+ import androidx.compose.material.icons.filled.Check
+ import androidx.compose.material.icons.filled.ClosedCaption
+ import androidx.compose.material.icons.filled.Info
+@@ -177,6 +178,20 @@ fun PlayerScreen(
+     onOpenRecommendationDetails: (PostPlayRecommendation) -> Unit = {}
+ ) {
+     val uiState by viewModel.uiState.collectAsState()
++    val introReport by viewModel.introDbReport.state.collectAsState()
++    LaunchedEffect(uiState.currentVideoId, uiState.currentSeason, uiState.currentEpisode, uiState.title) {
++        viewModel.introDbReport.load()
++    }
++    LaunchedEffect(uiState.currentVideoId, uiState.currentSeason, uiState.currentEpisode) {
++        while (true) {
++            delay(60_000)
++            if (!viewModel.introDbReport.state.value.active) viewModel.introDbReport.load(force = true)
++        }
++    }
++    DisposableEffect(viewModel) { onDispose { viewModel.introDbReport.dispose() } }
++    LaunchedEffect(uiState.playbackEnded, introReport.stage) {
++        if (uiState.playbackEnded && introReport.stage == ReportStage.RECORDING) viewModel.introDbReport.finish()
++    }
+     val postPlayRecommendationState by viewModel.postPlayRecommendationUiState.collectAsState()
+     val effectiveAutoplayEnabled by viewModel.effectiveAutoplayEnabled.collectAsState(initial = false)
+     val lifecycleOwner = LocalLifecycleOwner.current
+@@ -247,7 +262,7 @@ fun PlayerScreen(
+         it.hasAired && !(it.released.isNullOrBlank() && it.available == false)
+     }
+     val shouldConfirmNextEpisodeOnEnd =
+-        uiState.playbackEnded &&
++        !introReport.active && uiState.playbackEnded &&
+             uiState.error == null &&
+             (uiState.streamAutoPlayMode != StreamAutoPlayMode.MANUAL ||
+                 uiState.streamAutoPlayPreferBingeGroupForNextEpisode) &&
+@@ -299,6 +314,10 @@ fun PlayerScreen(
+     }
+ 
+     val handleBackPress = handleBackPress@{
++        if (introReport.active) {
++            viewModel.introDbReport.cancel()
++            return@handleBackPress
++        }
+         if (externalHandoffInProgress) return@handleBackPress
+         if (postPlayRecommendationState.canReturnToPlayer && !uiState.playbackEnded) {
+             returnToPlayerFromPostPlay()
+@@ -363,11 +382,12 @@ fun PlayerScreen(
+         uiState.playbackEnded,
+         uiState.error,
+         uiState.pendingExitReason,
++        introReport.active,
+         shouldConfirmNextEpisodeOnEnd,
+         postPlayRecommendationState.blocksNaturalCompletion
+     ) {
+         val explicitReason = uiState.pendingExitReason
+-        val shouldDispatchNatural = uiState.playbackEnded &&
++        val shouldDispatchNatural = !introReport.active && uiState.playbackEnded &&
+             uiState.error == null &&
+             uiState.postPlayMode?.blocksNaturalCompletion() != true &&
+             !postPlayRecommendationState.blocksNaturalCompletion &&
+@@ -498,7 +518,7 @@ fun PlayerScreen(
+         shouldConfirmNextEpisodeOnEnd,
+         postPlayRecommendationState.isVisible,
+     ) {
+-        if (shouldConfirmNextEpisodeOnEnd || postPlayRecommendationState.isVisible) return@LaunchedEffect
++        if (introReport.active || shouldConfirmNextEpisodeOnEnd || postPlayRecommendationState.isVisible) return@LaunchedEffect
+         if (uiState.error != null) return@LaunchedEffect
+         if (uiState.showControls && !uiState.showEpisodesPanel && !uiState.showSourcesPanel &&
+             !uiState.showAudioOverlay && !uiState.showSubtitleOverlay &&
+@@ -579,6 +599,8 @@ fun PlayerScreen(
+             .focusRequester(containerFocusRequester)
+             .focusable(enabled = uiState.error == null)
+             .onPreviewKeyEvent { keyEvent ->
++                if (introReport.active && keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_BACK &&
++                    keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_ESCAPE) return@onPreviewKeyEvent false
+                 // Consume the confirm KEY_UP that opened the subtitle timing dialog before
+                 // the newly focused "Sync" button can treat it as a second click. Preview
+                 // is required: after open, focus moves into the dialog so onKeyEvent on
+@@ -633,6 +655,7 @@ fun PlayerScreen(
+                 true
+             }
+             .onKeyEvent { keyEvent ->
++                if (introReport.active) return@onKeyEvent false
+                 // KEY_UP confirm for Sync Line is consumed in onPreviewKeyEvent so it still
+                 // runs after focus moves into the timing dialog.
+                 if (uiState.showSubtitleDelayOverlay) {
+@@ -1303,7 +1326,7 @@ fun PlayerScreen(
+ 
+         // Controls overlay
+         AnimatedVisibility(
+-            visible = uiState.showControls && uiState.error == null &&
++            visible = !introReport.active && uiState.showControls && uiState.error == null &&
+                 !uiState.showLoadingOverlay && !uiState.showPauseOverlay &&
+                 !uiState.showStreamInfoOverlay &&
+                 !uiState.showSubtitleStylePanel &&
+@@ -1326,6 +1349,12 @@ fun PlayerScreen(
+                 progressBarFocusRequester = progressBarFocusRequester,
+                 streamInfoFocusRequester = streamInfoFocusRequester,
+                 reportCodeVisible = reportCodeVisible,
++                introReport = introReport,
++                onIntroReport = {
++                    val clickedAtMs = viewModel.controller.currentPlaybackPositionMs()
++                    if (viewModel.introDbReport.hasApiKey()) viewModel.introDbReport.begin(clickedAtMs)
++                    else showIntroDbKeyDialog(context, viewModel.introDbReportRepository)
++                },
+                 progressBarUpFocusRequester = when {
+                     skipButtonActuallyVisible -> skipIntroFocusRequester
+                     uiState.postPlayMode is PostPlayMode.AutoPlay -> nextEpisodeFocusRequester
+@@ -1391,6 +1420,20 @@ fun PlayerScreen(
+             )
+         }
+ 
++        IntroDbReportOverlay(introReport, viewModel.introDbReport) {
++            showIntroDbKeyDialog(context, viewModel.introDbReportRepository)
++        }
++        if (!introReport.active && introReport.message != null) {
++            Box(Modifier.align(Alignment.TopCenter).padding(top = 40.dp)
++                .background(Color(0xEE18202E), RoundedCornerShape(12.dp)).padding(16.dp)) {
++                ReportMessage(introReport.message)
++            }
++            LaunchedEffect(introReport.message) {
++                delay(6000)
++                viewModel.introDbReport.clearMessage()
++            }
++        }
++
+         // Aspect ratio indicator (floating pill)
+         AnimatedVisibility(
+             visible = uiState.showAspectRatioIndicator,
+@@ -2165,6 +2208,8 @@ private fun PlayerControlsOverlay(
+     onHideControls: () -> Unit,
+     onBack: () -> Unit,
+     reportCodeVisible: Boolean,
++    introReport: IntroDbReportState,
++    onIntroReport: () -> Unit,
+     skipButtonVisible: Boolean = false
+ ) {
+     val customPlayPainter = rememberRawSvgPainter(R.raw.ic_player_play)
+@@ -2415,6 +2460,17 @@ private fun PlayerControlsOverlay(
+                         )
+                     }
+ 
++                    if (introReport.canStart && !isLivePlayback) {
++                        ControlButton(
++                            icon = Icons.Default.Flag,
++                            contentDescription = stringResource(R.string.yp_report_button),
++                            onClick = onIntroReport,
++                            upFocusRequester = progressUpTarget,
++                            onDownKey = onHideControls,
++                            onFocused = onResetHideTimer
++                        )
++                    }
++
+                     AnimatedVisibility(
+                         visible = uiState.showMoreDialog,
+                         enter = slideInHorizontally(
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt
+index 44d999d..3d234f8 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerUiState.kt
+@@ -58,6 +58,7 @@ sealed interface PostPlayMode {
+ }
+ 
+ data class PlayerUiState(
++    val introDbReportingActive: Boolean = false,
+     val isPlaying: Boolean = false,
+     val isBuffering: Boolean = true,
+     val playbackEnded: Boolean = false,
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerViewModel.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerViewModel.kt
+index ab3f063..c366087 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerViewModel.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerViewModel.kt
+@@ -60,6 +60,7 @@ class PlayerViewModel @Inject constructor(
+     private val trackingScrobbleCoordinator: TrackingScrobbleCoordinator,
+     private val traktEpisodeMappingService: TraktEpisodeMappingService,
+     private val skipIntroRepository: SkipIntroRepository,
++    internal val introDbReportRepository: com.nuvio.tv.data.introdb.IntroDbReportRepository,
+     private val playerSettingsDataStore: PlayerSettingsDataStore,
+     private val deviceLocalPlayerPreferences: DeviceLocalPlayerPreferences,
+     private val streamLinkCacheDataStore: StreamLinkCacheDataStore,
+@@ -172,6 +173,8 @@ class PlayerViewModel @Inject constructor(
+         scope = viewModelScope
+     )
+ 
++    internal val introDbReport = IntroDbReportCoordinator(controller, introDbReportRepository, metaRepository, viewModelScope)
++
+     val uiState: StateFlow<PlayerUiState>
+         get() = controller.uiState
+ 
+@@ -201,6 +204,7 @@ class PlayerViewModel @Inject constructor(
+     }
+ 
+     fun stopAndRelease() {
++        introDbReport.dispose()
+         postPlayRecommendationController.stop()
+         controller.stopAndRelease()
+     }
+@@ -270,6 +274,7 @@ class PlayerViewModel @Inject constructor(
+     }
+ 
+     override fun onCleared() {
++        introDbReport.dispose()
+         postPlayRecommendationController.stop()
+         controller.onCleared()
+         // Allow the trailer player to be re-created when returning to home screen.
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/player/PostPlayRecommendationState.kt b/app/src/main/java/com/nuvio/tv/ui/screens/player/PostPlayRecommendationState.kt
+index 993ff8e..5f6fc19 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/player/PostPlayRecommendationState.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/player/PostPlayRecommendationState.kt
+@@ -74,7 +74,7 @@ internal fun PostPlayRecommendationUiState.returnToPlayer(): PostPlayRecommendat
+ }
+ 
+ internal fun PlayerUiState.blocksPostPlayRecommendation(): Boolean {
+-    return pendingPreviewSeekPosition != null ||
++    return introDbReportingActive || pendingPreviewSeekPosition != null ||
+         showPauseOverlay ||
+         showStreamInfoOverlay ||
+         showEpisodesPanel ||
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/settings/IntroDbReportSettings.kt b/app/src/main/java/com/nuvio/tv/ui/screens/settings/IntroDbReportSettings.kt
+new file mode 100644
+index 0000000..2c46258
+--- /dev/null
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/settings/IntroDbReportSettings.kt
+@@ -0,0 +1,36 @@
++package com.nuvio.tv.ui.screens.settings
++
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import com.nuvio.tv.R
++import com.nuvio.tv.data.introdb.IntroDbReportRepository
++import com.nuvio.tv.ui.screens.player.showIntroDbKeyDialog
++import dagger.hilt.EntryPoint
++import dagger.hilt.InstallIn
++import dagger.hilt.android.EntryPointAccessors
++import dagger.hilt.components.SingletonComponent
++
++@EntryPoint
++@InstallIn(SingletonComponent::class)
++interface IntroDbReportSettingsEntryPoint { fun introDbReportRepository(): IntroDbReportRepository }
++
++@Composable
++internal fun IntroDbReportSettingsRow() {
++    val context = LocalContext.current
++    val repository = remember(context) {
++        EntryPointAccessors.fromApplication(context.applicationContext, IntroDbReportSettingsEntryPoint::class.java)
++            .introDbReportRepository()
++    }
++    var enabled by remember { mutableStateOf(repository.enabled) }
++    SettingsToggleRow(title = stringResource(R.string.yp_report_enabled),
++        subtitle = stringResource(R.string.yp_report_enabled_info), checked = enabled,
++        onToggle = { enabled = !enabled; repository.enabled = enabled })
++    SettingsActionRow(title = stringResource(R.string.yp_report_key_title),
++        subtitle = stringResource(R.string.yp_report_key_info), value = null,
++        onClick = { showIntroDbKeyDialog(context, repository) })
++}
+diff --git a/app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackPlayerSettings.kt b/app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackPlayerSettings.kt
+index c444cab..2a44ad5 100644
+--- a/app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackPlayerSettings.kt
++++ b/app/src/main/java/com/nuvio/tv/ui/screens/settings/PlaybackPlayerSettings.kt
+@@ -63,6 +63,8 @@ internal fun PlaybackSkipSegmentsSection(
+     val internalPlayer = settings.playerPreference != PlayerPreference.EXTERNAL
+     val autoSkipEnabled = internalPlayer && settings.skipIntroEnabled
+ 
++    IntroDbReportSettingsRow()
++
+     SettingsToggleRow(
+         title = stringResource(R.string.playback_skip_intro),
+         subtitle = stringResource(R.string.playback_skip_intro_sub),
+diff --git a/app/src/main/res/values-iw/yp_introdb_report_strings.xml b/app/src/main/res/values-iw/yp_introdb_report_strings.xml
+new file mode 100644
+index 0000000..a5794cc
+--- /dev/null
++++ b/app/src/main/res/values-iw/yp_introdb_report_strings.xml
+@@ -0,0 +1,34 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="yp_report_button">דיווח על קטע</string>
++    <string name="yp_report_intro">פתיחה / שיר פתיחה</string>
++    <string name="yp_report_recap">תקציר הפרקים הקודמים</string>
++    <string name="yp_report_outro">סיום / כתוביות</string>
++    <string name="yp_report_choose">בחר סוג קטע</string>
++    <string name="yp_report_saved_start">זמן התחלה נשמר: %1$s</string>
++    <string name="yp_report_finish">סיום</string>
++    <string name="yp_report_cancel">ביטול</string>
++    <string name="yp_report_review">בדיקת זמני הדיווח</string>
++    <string name="yp_report_start">התחלה</string>
++    <string name="yp_report_end">סוף</string>
++    <string name="yp_report_frame">תמונה בזמן שנבחר</string>
++    <string name="yp_report_loading_frame">טוען תמונה…</string>
++    <string name="yp_report_frame_unavailable">אין תמונה זמינה במקור זה. ניתן לתקן את הזמנים.</string>
++    <string name="yp_report_send">שלח ל־IntroDB</string>
++    <string name="yp_report_sending">שולח…</string>
++    <string name="yp_report_sent">הדיווח נשלח ל־IntroDB.</string>
++    <string name="yp_report_exists">הקטע כבר מוגדר. לא נשלח דיווח.</string>
++    <string name="yp_report_check_failed">לא ניתן לבדוק קטעים קיימים. הדיווח זמין רק לאחר בדיקה מוצלחת.</string>
++    <string name="yp_report_key_failed">בדוק את מפתח ה־API של IntroDB.</string>
++    <string name="yp_report_rate_limit">יותר מדי בקשות. המתן לפני ניסיון נוסף.</string>
++    <string name="yp_report_invalid_range">הסיום חייב להיות אחרי ההתחלה ובתוך הסרטון. IntroDB עשוי לדחות גם אורך קטע לא תקין.</string>
++    <string name="yp_report_send_failed">השליחה נכשלה. הטיוטה נשמרה וניתן לנסות בהמשך.</string>
++    <string name="yp_report_key_title">מפתח API לדיווח ל־IntroDB</string>
++    <string name="yp_report_key_info">הזן מפתח IntroDB אישי. הוא נשמר מוצפן במכשיר. השאר ריק כדי להסיר אותו.</string>
++    <string name="yp_report_save">שמור</string>
++    <string name="yp_report_get_key">פתח את IntroDB</string>
++    <string name="yp_report_resume_draft">המשך טיוטה שמורה</string>
++    <string name="yp_report_keep_draft">שמור טיוטה וסגור</string>
++    <string name="yp_report_enabled">דיווח ל־IntroDB</string>
++    <string name="yp_report_enabled_info">סימון תקציר, פתיחה וסיום שחסרים במאגר מתוך הנגן.</string>
++</resources>
+diff --git a/app/src/main/res/values/yp_introdb_report_strings.xml b/app/src/main/res/values/yp_introdb_report_strings.xml
+new file mode 100644
+index 0000000..a52baf4
+--- /dev/null
++++ b/app/src/main/res/values/yp_introdb_report_strings.xml
+@@ -0,0 +1,35 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="yp_report_button">Report segment</string>
++    <string name="yp_report_intro">Opening / theme song</string>
++    <string name="yp_report_recap">Previously on / recap</string>
++    <string name="yp_report_outro">Ending / credits</string>
++    <string name="yp_report_choose">Choose segment type</string>
++    <string name="yp_report_saved_start">Start saved: %1$s</string>
++    <string name="yp_report_finish">Finish</string>
++    <string name="yp_report_cancel">Cancel</string>
++    <string name="yp_report_review">Review timestamps</string>
++    <string name="yp_report_start">Start</string>
++    <string name="yp_report_end">End</string>
++    <string name="yp_report_frame">Frame at selected timestamp</string>
++    <string name="yp_report_loading_frame">Loading preview…</string>
++    <string name="yp_report_frame_unavailable">Preview unavailable on this stream. Times can still be adjusted.</string>
++    <string name="yp_report_send">Send to IntroDB</string>
++    <string name="yp_report_sending">Sending…</string>
++    <string name="yp_report_sent">Report sent to IntroDB.</string>
++    <string name="yp_report_exists">This segment is already defined. No report was sent.</string>
++    <string name="yp_report_check_failed">Could not check existing segments. Reporting is unavailable until the check succeeds.</string>
++    <string name="yp_report_key_failed">Check your IntroDB API key.</string>
++    <string name="yp_report_rate_limit">Too many requests. Wait before retrying.</string>
++    <string name="yp_report_invalid_range">The end must be after the start and within the video. IntroDB may also reject segment length.</string>
++    <string name="yp_report_send_failed">Could not send. Your draft is saved; you can retry later.</string>
++    <string name="yp_report_key_title">IntroDB reporting API key</string>
++    <string name="yp_report_key_info">Enter your personal IntroDB key. It is encrypted on this device. Leave blank to remove it.</string>
++    <string name="yp_report_save">Save</string>
++    <string name="yp_report_get_key">Open IntroDB</string>
++    <string name="yp_report_resume_draft">Resume saved draft</string>
++    <string name="yp_report_keep_draft">Save draft and close</string>
++    <string name="yp_report_enabled">IntroDB reporting</string>
++    <string name="yp_report_enabled_info">Mark missing recaps, openings and credits from the player.</string>
++    <string name="yp_app_name">YP Nuvio</string>
++</resources>
+diff --git a/app/src/test/java/com/nuvio/tv/data/introdb/IntroDbReportRulesTest.kt b/app/src/test/java/com/nuvio/tv/data/introdb/IntroDbReportRulesTest.kt
+new file mode 100644
+index 0000000..06568c4
+--- /dev/null
++++ b/app/src/test/java/com/nuvio/tv/data/introdb/IntroDbReportRulesTest.kt
+@@ -0,0 +1,38 @@
++package com.nuvio.tv.data.introdb
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class IntroDbReportRulesTest {
++    private val tv = ReportMedia("tt0903747", 1, 1)
++    @Test fun existingOpeningLeavesOnlyMissingKinds() {
++        assertEquals(setOf(ReportSegment.RECAP, ReportSegment.OUTRO),
++            IntroDbReportRules.available(tv, setOf(ReportSegment.INTRO)))
++    }
++    @Test fun allDefinedHidesReporting() {
++        assertTrue(IntroDbReportRules.available(tv, ReportSegment.entries.toSet()).isEmpty())
++    }
++    @Test fun movieHasOnlyCredits() {
++        val movie = ReportMedia("tt0371746", movie = true)
++        assertEquals(setOf(ReportSegment.OUTRO), IntroDbReportRules.available(movie, emptySet()))
++        assertTrue(IntroDbReportRules.available(movie, setOf(ReportSegment.OUTRO)).isEmpty())
++    }
++    @Test fun rejectsUnresolvedOrSpecialEpisodeIdentity() {
++        assertFalse(ReportMedia("tmdb:123", 1, 1).valid)
++        assertFalse(ReportMedia("tt0903747", 0, 1).valid)
++        assertFalse(ReportMedia("tt0903747", 1, null).valid)
++    }
++    @Test fun adjustmentCannotCrossBoundariesOrVideoEnd() {
++        assertEquals(0L to 1000L, IntroDbReportRules.adjust(0, 1000, 2000, true, -500))
++        assertEquals(999L to 1000L, IntroDbReportRules.adjust(0, 1000, 2000, true, 5000))
++        assertEquals(500L to 501L, IntroDbReportRules.adjust(500, 1000, 2000, false, -5000))
++        assertEquals(500L to 2000L, IntroDbReportRules.adjust(500, 1000, 2000, false, 5000))
++    }
++    @Test fun rejectsEmptyReverseAndOutOfVideoRanges() {
++        assertFalse(IntroDbReportRules.validRange(1000, 500, 2000))
++        assertFalse(IntroDbReportRules.validRange(500, 500, 2000))
++        assertFalse(IntroDbReportRules.validRange(-1, 500, 2000))
++        assertFalse(IntroDbReportRules.validRange(500, 2500, 2000))
++        assertTrue(IntroDbReportRules.validRange(0, 2000, 2000))
++    }
++}
+diff --git a/yp-tests/IntroDbReportCoordinatorCheck.kt b/yp-tests/IntroDbReportCoordinatorCheck.kt
+new file mode 100644
+index 0000000..98423d0
+--- /dev/null
++++ b/yp-tests/IntroDbReportCoordinatorCheck.kt
+@@ -0,0 +1,75 @@
++package com.nuvio.tv.ui.screens.player
++import com.nuvio.tv.data.introdb.*
++import com.nuvio.tv.domain.repository.MetaRepository
++import kotlinx.coroutines.*
++
++fun main() = runBlocking {
++    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
++    val player = PlayerRuntimeController()
++    val repo = IntroDbReportRepository()
++    val report = IntroDbReportCoordinator(player, repo, MetaRepository(), scope)
++    repo.existingTypes = setOf(ReportSegment.INTRO)
++    player._uiState.value = FakeUiState(postPlayMode = "existing-card")
++    report.load()
++    check(player._uiState.value.postPlayMode == "existing-card")
++    check(report.state.value.available == setOf(ReportSegment.RECAP, ReportSegment.OUTRO))
++    report.begin()
++    check(report.state.value.startMs == 72123L) // Exact click time, not the time of choosing.
++    check(player._uiState.value.introDbReportingActive)
++    player.position = 75123L
++    report.choose(ReportSegment.INTRO)
++    check(report.state.value.stage == ReportStage.CHOOSE) // Existing kinds cannot be chosen.
++    report.choose(ReportSegment.RECAP)
++    player.position = 70000L
++    report.finish()
++    check(report.state.value.stage == ReportStage.RECORDING && player.playing)
++    player.position = 150000L
++    report.finish()
++    check(!player.playing)
++    check(report.state.value.endMs == 150000L)
++    check(report.state.value.startImage?.atMs == 72123L)
++    check(report.state.value.endImage?.atMs == 150000L)
++    report.adjust(true, -500)
++    report.adjust(false, 1000)
++    check(report.state.value.startMs == 71623L && report.state.value.startImage?.atMs == 71623L)
++    check(report.state.value.endMs == 151000L && report.state.value.endImage?.atMs == 151000L)
++    report.send()
++    check(repo.sends == 1 && repo.sentStart == 71623L && repo.sentEnd == 151000L)
++    check(report.state.value.available == setOf(ReportSegment.OUTRO))
++    check(player.position == 150000L && player.playing) // Return to Finish position, not preview position.
++    report.begin(); report.choose(ReportSegment.OUTRO); player.position = 170000L; report.finish()
++    repo.existingTypes += ReportSegment.OUTRO // Another contributor publishes during review.
++    report.send()
++    check(repo.sends == 1 && report.state.value.available.isEmpty())
++    check(report.state.value.message == "exists")
++    report.begin()
++    check(report.state.value.stage == ReportStage.IDLE)
++
++    val offlineRepo = IntroDbReportRepository().apply { failRead = true }
++    val offline = IntroDbReportCoordinator(PlayerRuntimeController(), offlineRepo, MetaRepository(), scope)
++    offline.load()
++    check(!offline.state.value.canStart) // Failed lookup does not imply missing data.
++    check(offline.state.value.message == "check_failed")
++
++    val draftPlayer = PlayerRuntimeController()
++    val draftRepo = IntroDbReportRepository().apply { failSend = true }
++    val draft = IntroDbReportCoordinator(draftPlayer, draftRepo, MetaRepository(), scope)
++    draft.load(); draft.begin(); draft.choose(ReportSegment.INTRO); draftPlayer.position = 155000; draft.finish(); draft.send()
++    check(draft.state.value.stage == ReportStage.REVIEW && !draft.state.value.sending)
++    check(draftRepo.draft(ReportMedia("tt0903747", 1, 1)) != null)
++    draft.dispose() // Leaving preserves a failed-send draft.
++    val reopened = IntroDbReportCoordinator(draftPlayer, draftRepo, MetaRepository(), scope)
++    reopened.load(); draftPlayer.position = 200000; reopened.begin()
++    check(reopened.state.value.stage == ReportStage.CHOOSE && reopened.state.value.startMs == 200000L)
++    reopened.resumeDraft()
++    check(reopened.state.value.stage == ReportStage.REVIEW && reopened.state.value.startMs == 72123L)
++    reopened.cancel()
++    check(draftRepo.draft(ReportMedia("tt0903747", 1, 1)) == null)
++    check(draftPlayer.position == 200000L)
++    val disabledRepo = IntroDbReportRepository().apply { enabled = false }
++    val disabled = IntroDbReportCoordinator(PlayerRuntimeController(), disabledRepo, MetaRepository(), scope)
++    disabled.load()
++    check(!disabled.state.value.canStart && disabledRepo.reads == 0)
++    scope.cancel()
++    println("Reporting lifecycle checks passed: capture, preview correction, send, race blocking, offline lockout, draft restore, cancel")
++}
+diff --git a/yp-tests/IntroDbReportRulesCheck.kt b/yp-tests/IntroDbReportRulesCheck.kt
+new file mode 100644
+index 0000000..4480e9b
+--- /dev/null
++++ b/yp-tests/IntroDbReportRulesCheck.kt
+@@ -0,0 +1,26 @@
++import com.nuvio.tv.data.introdb.*
++
++fun main() {
++    val tv = ReportMedia("tt0903747", 1, 1)
++    check(tv.valid)
++    check(!ReportMedia("tmdb:123", 1, 1).valid)
++    check(!ReportMedia("tt0903747", null, 1).valid)
++    check(!ReportMedia("tt0903747", 1, 0).valid)
++    check(!ReportMedia("tt0903747", 0, 1).valid)
++    check(IntroDbReportRules.available(tv, emptySet()).size == 3)
++    check(IntroDbReportRules.available(tv, setOf(ReportSegment.INTRO)) == setOf(ReportSegment.RECAP, ReportSegment.OUTRO))
++    check(IntroDbReportRules.available(tv, ReportSegment.entries.toSet()).isEmpty())
++    val movie = ReportMedia("tt0371746", movie = true)
++    check(movie.valid)
++    check(IntroDbReportRules.available(movie, emptySet()) == setOf(ReportSegment.OUTRO))
++    check(IntroDbReportRules.available(movie, setOf(ReportSegment.OUTRO)).isEmpty())
++    check(!IntroDbReportRules.validRange(5, 5, 100))
++    check(!IntroDbReportRules.validRange(-1, 10, 100))
++    check(!IntroDbReportRules.validRange(0, 101, 100))
++    check(IntroDbReportRules.validRange(0, 100, 100))
++    check(IntroDbReportRules.adjust(0, 1000, 2000, true, -500) == (0L to 1000L))
++    check(IntroDbReportRules.adjust(0, 1000, 2000, true, 5000) == (999L to 1000L))
++    check(IntroDbReportRules.adjust(500, 1000, 2000, false, -5000) == (500L to 501L))
++    check(IntroDbReportRules.adjust(500, 1000, 2000, false, 5000) == (500L to 2000L))
++    println("19 reporting policy checks passed")
++}
+diff --git a/yp-tests/stubs/Bitmap.kt b/yp-tests/stubs/Bitmap.kt
+new file mode 100644
+index 0000000..5f614a3
+--- /dev/null
++++ b/yp-tests/stubs/Bitmap.kt
+@@ -0,0 +1,2 @@
++package android.graphics
++class Bitmap(val atMs: Long)
+diff --git a/yp-tests/stubs/Metadata.kt b/yp-tests/stubs/Metadata.kt
+new file mode 100644
+index 0000000..a889d60
+--- /dev/null
++++ b/yp-tests/stubs/Metadata.kt
+@@ -0,0 +1,5 @@
++package com.nuvio.tv.domain.repository
++class MetaRepository {
++    class Meta(val imdbId: String?)
++    fun getCachedMeta(type: String, id: String) = Meta(null)
++}
+diff --git a/yp-tests/stubs/Player.kt b/yp-tests/stubs/Player.kt
+new file mode 100644
+index 0000000..10b8dce
+--- /dev/null
++++ b/yp-tests/stubs/Player.kt
+@@ -0,0 +1,34 @@
++package com.nuvio.tv.ui.screens.player
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.flow.MutableStateFlow
++import android.graphics.Bitmap
++
++data class FakeUiState(val introDbReportingActive: Boolean = false, val activeSkipInterval: String? = null,
++    val showPauseOverlay: Boolean = false, val postPlayMode: String? = null)
++data class FakeTimeline(val isLive: Boolean = false)
++class PlayerRuntimeController {
++    var contentId: String? = "tt0903747"
++    var currentVideoId: String? = "tt0903747:1:1"
++    var currentSeason: Int? = 1
++    var currentEpisode: Int? = 1
++    var contentType: String? = "series"
++    val playbackTimeline = MutableStateFlow(FakeTimeline())
++    val _uiState = MutableStateFlow(FakeUiState())
++    var nextEpisodeAutoPlayJob: Job? = null
++    var pauseOverlayJob: Job? = null
++    var position = 72_123L
++    var duration = 3600_000L
++    var playing = true
++    var controlsHidden = false
++    fun currentPlaybackPositionMs(): Long? = position
++    fun currentPlaybackDurationMs(): Long = duration
++    fun hasActivePlayIntent() = playing
++    fun hideControls() { controlsHidden = true }
++    fun scheduleHideControls() { controlsHidden = false }
++    fun setPlaybackPaused(paused: Boolean) { playing = !paused }
++    fun seekPlaybackTo(at: Long) { position = at }
++}
++suspend fun PlayerRuntimeController.captureReportFrame(atMs: Long? = null): Bitmap? {
++    if (atMs != null) position = atMs
++    return Bitmap(position)
++}
+diff --git a/yp-tests/stubs/Repository.kt b/yp-tests/stubs/Repository.kt
+new file mode 100644
+index 0000000..a61cc2b
+--- /dev/null
++++ b/yp-tests/stubs/Repository.kt
+@@ -0,0 +1,32 @@
++package com.nuvio.tv.data.introdb
++
++class IntroDbReportRepository {
++    var enabled = true
++    var existingTypes = emptySet<ReportSegment>()
++    var failRead = false
++    var failSend = false
++    var sends = 0
++    var reads = 0
++    var sentStart = -1L
++    var sentEnd = -1L
++    var key: String? = "idb_test"
++    private val submitted = mutableSetOf<ReportSegment>()
++    data class Draft(val segment: ReportSegment, val start: Long, val end: Long, val duration: Long)
++    private var savedDraft: Draft? = null
++    fun apiKey() = key
++    fun saveApiKey(value: String) { key = value }
++    suspend fun existing(media: ReportMedia): Set<ReportSegment> { reads++; check(!failRead); return existingTypes }
++    suspend fun submit(media: ReportMedia, segment: ReportSegment, start: Long, end: Long, duration: Long): Boolean {
++        if (segment in existing(media)) return false
++        check(!failSend)
++        sends++; sentStart = start; sentEnd = end
++        return true
++    }
++    fun submitted(media: ReportMedia) = submitted.toSet()
++    fun markSubmitted(media: ReportMedia, segment: ReportSegment) { submitted += segment }
++    fun draft(media: ReportMedia) = savedDraft
++    fun saveDraft(media: ReportMedia, segment: ReportSegment, start: Long, end: Long, duration: Long) {
++        savedDraft = Draft(segment, start, end, duration)
++    }
++    fun removeDraft(media: ReportMedia) { savedDraft = null }
++}
