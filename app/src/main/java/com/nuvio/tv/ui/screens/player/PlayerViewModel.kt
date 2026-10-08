@@ -60,6 +60,7 @@ class PlayerViewModel @Inject constructor(
     private val trackingScrobbleCoordinator: TrackingScrobbleCoordinator,
     private val traktEpisodeMappingService: TraktEpisodeMappingService,
     private val skipIntroRepository: SkipIntroRepository,
+    internal val introDbReportRepository: com.nuvio.tv.data.introdb.IntroDbReportRepository,
     private val playerSettingsDataStore: PlayerSettingsDataStore,
     private val deviceLocalPlayerPreferences: DeviceLocalPlayerPreferences,
     private val streamLinkCacheDataStore: StreamLinkCacheDataStore,
@@ -172,6 +173,8 @@ class PlayerViewModel @Inject constructor(
         scope = viewModelScope
     )
 
+    internal val introDbReport = IntroDbReportCoordinator(controller, introDbReportRepository, metaRepository, viewModelScope)
+
     val uiState: StateFlow<PlayerUiState>
         get() = controller.uiState
 
@@ -201,6 +204,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun stopAndRelease() {
+        introDbReport.dispose()
         postPlayRecommendationController.stop()
         controller.stopAndRelease()
     }
@@ -270,6 +274,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        introDbReport.dispose()
         postPlayRecommendationController.stop()
         controller.onCleared()
         // Allow the trailer player to be re-created when returning to home screen.

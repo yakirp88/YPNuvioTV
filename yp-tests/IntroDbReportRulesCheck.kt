@@ -1,0 +1,26 @@
+import com.nuvio.tv.data.introdb.*
+
+fun main() {
+    val tv = ReportMedia("tt0903747", 1, 1)
+    check(tv.valid)
+    check(!ReportMedia("tmdb:123", 1, 1).valid)
+    check(!ReportMedia("tt0903747", null, 1).valid)
+    check(!ReportMedia("tt0903747", 1, 0).valid)
+    check(!ReportMedia("tt0903747", 0, 1).valid)
+    check(IntroDbReportRules.available(tv, emptySet()).size == 3)
+    check(IntroDbReportRules.available(tv, setOf(ReportSegment.INTRO)) == setOf(ReportSegment.RECAP, ReportSegment.OUTRO))
+    check(IntroDbReportRules.available(tv, ReportSegment.entries.toSet()).isEmpty())
+    val movie = ReportMedia("tt0371746", movie = true)
+    check(movie.valid)
+    check(IntroDbReportRules.available(movie, emptySet()) == setOf(ReportSegment.OUTRO))
+    check(IntroDbReportRules.available(movie, setOf(ReportSegment.OUTRO)).isEmpty())
+    check(!IntroDbReportRules.validRange(5, 5, 100))
+    check(!IntroDbReportRules.validRange(-1, 10, 100))
+    check(!IntroDbReportRules.validRange(0, 101, 100))
+    check(IntroDbReportRules.validRange(0, 100, 100))
+    check(IntroDbReportRules.adjust(0, 1000, 2000, true, -500) == (0L to 1000L))
+    check(IntroDbReportRules.adjust(0, 1000, 2000, true, 5000) == (999L to 1000L))
+    check(IntroDbReportRules.adjust(500, 1000, 2000, false, -5000) == (500L to 501L))
+    check(IntroDbReportRules.adjust(500, 1000, 2000, false, 5000) == (500L to 2000L))
+    println("19 reporting policy checks passed")
+}

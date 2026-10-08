@@ -222,6 +222,15 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
         mpv.setPropertyDouble("time-pos", seconds)
     }
 
+    internal fun seekReportFrame(positionMs: Long) {
+        if (!initialized) return
+        mpv.command("seek", (positionMs / 1000.0).toString(), "absolute+exact")
+    }
+
+    internal fun isReportSeekSettled(positionMs: Long): Boolean = initialized &&
+        mpv.getPropertyBoolean("seeking") != true &&
+        kotlin.math.abs(currentPositionMs() - positionMs) <= 250L
+
     fun currentPositionMs(): Long {
         if (!initialized) return 0L
         val seconds = mpv.getPropertyDouble("time-pos/full")

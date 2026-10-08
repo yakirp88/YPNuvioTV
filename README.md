@@ -1,3 +1,19 @@
+# YP Nuvio TV — IntroDB reporting
+
+Independent fork of NuvioTV with recap, opening/theme song and credits reporting,
+video thumbnails and boundary correction. Existing segment types are hidden.
+
+**[Download test APKs](https://github.com/yakirp88/YPNuvioTV/releases)** ·
+[Setup, build and validation](YP-INTRODB-README.md)
+
+To install addons: **Addons → Manage from phone**, scan the QR on a phone on
+the same network, paste the manifest URL and confirm on the TV. Official account
+cloud sync is not configured in this build.
+
+The changes and upstream are GPL-3.0. This is not an official Nuvio release.
+
+---
+
 <div align="center">
 
   <img src="assets/brand/app_logo_wordmark.png" alt="Nuvio" width="300" />

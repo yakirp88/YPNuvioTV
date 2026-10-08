@@ -58,6 +58,7 @@ sealed interface PostPlayMode {
 }
 
 data class PlayerUiState(
+    val introDbReportingActive: Boolean = false,
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = true,
     val playbackEnded: Boolean = false,

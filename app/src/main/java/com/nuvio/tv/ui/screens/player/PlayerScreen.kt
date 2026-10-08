@@ -60,6 +60,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Info
@@ -177,6 +178,20 @@ fun PlayerScreen(
     onOpenRecommendationDetails: (PostPlayRecommendation) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val introReport by viewModel.introDbReport.state.collectAsState()
+    LaunchedEffect(uiState.currentVideoId, uiState.currentSeason, uiState.currentEpisode, uiState.title) {
+        viewModel.introDbReport.load()
+    }
+    LaunchedEffect(uiState.currentVideoId, uiState.currentSeason, uiState.currentEpisode) {
+        while (true) {
+            delay(60_000)
+            if (!viewModel.introDbReport.state.value.active) viewModel.introDbReport.load(force = true)
+        }
+    }
+    DisposableEffect(viewModel) { onDispose { viewModel.introDbReport.dispose() } }
+    LaunchedEffect(uiState.playbackEnded, introReport.stage) {
+        if (uiState.playbackEnded && introReport.stage == ReportStage.RECORDING) viewModel.introDbReport.finish()
+    }
     val postPlayRecommendationState by viewModel.postPlayRecommendationUiState.collectAsState()
     val effectiveAutoplayEnabled by viewModel.effectiveAutoplayEnabled.collectAsState(initial = false)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -247,7 +262,7 @@ fun PlayerScreen(
         it.hasAired && !(it.released.isNullOrBlank() && it.available == false)
     }
     val shouldConfirmNextEpisodeOnEnd =
-        uiState.playbackEnded &&
+        !introReport.active && uiState.playbackEnded &&
             uiState.error == null &&
             (uiState.streamAutoPlayMode != StreamAutoPlayMode.MANUAL ||
                 uiState.streamAutoPlayPreferBingeGroupForNextEpisode) &&
@@ -299,6 +314,10 @@ fun PlayerScreen(
     }
 
     val handleBackPress = handleBackPress@{
+        if (introReport.active) {
+            viewModel.introDbReport.cancel()
+            return@handleBackPress
+        }
         if (externalHandoffInProgress) return@handleBackPress
         if (postPlayRecommendationState.canReturnToPlayer && !uiState.playbackEnded) {
             returnToPlayerFromPostPlay()
@@ -363,11 +382,12 @@ fun PlayerScreen(
         uiState.playbackEnded,
         uiState.error,
         uiState.pendingExitReason,
+        introReport.active,
         shouldConfirmNextEpisodeOnEnd,
         postPlayRecommendationState.blocksNaturalCompletion
     ) {
         val explicitReason = uiState.pendingExitReason
-        val shouldDispatchNatural = uiState.playbackEnded &&
+        val shouldDispatchNatural = !introReport.active && uiState.playbackEnded &&
             uiState.error == null &&
             uiState.postPlayMode?.blocksNaturalCompletion() != true &&
             !postPlayRecommendationState.blocksNaturalCompletion &&
@@ -498,7 +518,7 @@ fun PlayerScreen(
         shouldConfirmNextEpisodeOnEnd,
         postPlayRecommendationState.isVisible,
     ) {
-        if (shouldConfirmNextEpisodeOnEnd || postPlayRecommendationState.isVisible) return@LaunchedEffect
+        if (introReport.active || shouldConfirmNextEpisodeOnEnd || postPlayRecommendationState.isVisible) return@LaunchedEffect
         if (uiState.error != null) return@LaunchedEffect
         if (uiState.showControls && !uiState.showEpisodesPanel && !uiState.showSourcesPanel &&
             !uiState.showAudioOverlay && !uiState.showSubtitleOverlay &&
@@ -579,6 +599,8 @@ fun PlayerScreen(
             .focusRequester(containerFocusRequester)
             .focusable(enabled = uiState.error == null)
             .onPreviewKeyEvent { keyEvent ->
+                if (introReport.active && keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_BACK &&
+                    keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_ESCAPE) return@onPreviewKeyEvent false
                 // Consume the confirm KEY_UP that opened the subtitle timing dialog before
                 // the newly focused "Sync" button can treat it as a second click. Preview
                 // is required: after open, focus moves into the dialog so onKeyEvent on
@@ -633,6 +655,7 @@ fun PlayerScreen(
                 true
             }
             .onKeyEvent { keyEvent ->
+                if (introReport.active) return@onKeyEvent false
                 // KEY_UP confirm for Sync Line is consumed in onPreviewKeyEvent so it still
                 // runs after focus moves into the timing dialog.
                 if (uiState.showSubtitleDelayOverlay) {
@@ -1303,7 +1326,7 @@ fun PlayerScreen(
 
         // Controls overlay
         AnimatedVisibility(
-            visible = uiState.showControls && uiState.error == null &&
+            visible = !introReport.active && uiState.showControls && uiState.error == null &&
                 !uiState.showLoadingOverlay && !uiState.showPauseOverlay &&
                 !uiState.showStreamInfoOverlay &&
                 !uiState.showSubtitleStylePanel &&
@@ -1326,6 +1349,12 @@ fun PlayerScreen(
                 progressBarFocusRequester = progressBarFocusRequester,
                 streamInfoFocusRequester = streamInfoFocusRequester,
                 reportCodeVisible = reportCodeVisible,
+                introReport = introReport,
+                onIntroReport = {
+                    val clickedAtMs = viewModel.controller.currentPlaybackPositionMs()
+                    if (viewModel.introDbReport.hasApiKey()) viewModel.introDbReport.begin(clickedAtMs)
+                    else showIntroDbKeyDialog(context, viewModel.introDbReportRepository)
+                },
                 progressBarUpFocusRequester = when {
                     skipButtonActuallyVisible -> skipIntroFocusRequester
                     uiState.postPlayMode is PostPlayMode.AutoPlay -> nextEpisodeFocusRequester
@@ -1389,6 +1418,20 @@ fun PlayerScreen(
                 onBack = { exitPlayer() },
                 skipButtonVisible = skipButtonActuallyVisible
             )
+        }
+
+        IntroDbReportOverlay(introReport, viewModel.introDbReport) {
+            showIntroDbKeyDialog(context, viewModel.introDbReportRepository)
+        }
+        if (!introReport.active && introReport.message != null) {
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 40.dp)
+                .background(Color(0xEE18202E), RoundedCornerShape(12.dp)).padding(16.dp)) {
+                ReportMessage(introReport.message)
+            }
+            LaunchedEffect(introReport.message) {
+                delay(6000)
+                viewModel.introDbReport.clearMessage()
+            }
         }
 
         // Aspect ratio indicator (floating pill)
@@ -2165,6 +2208,8 @@ private fun PlayerControlsOverlay(
     onHideControls: () -> Unit,
     onBack: () -> Unit,
     reportCodeVisible: Boolean,
+    introReport: IntroDbReportState,
+    onIntroReport: () -> Unit,
     skipButtonVisible: Boolean = false
 ) {
     val customPlayPainter = rememberRawSvgPainter(R.raw.ic_player_play)
@@ -2409,6 +2454,17 @@ private fun PlayerControlsOverlay(
                             iconPainter = customEpisodesPainter,
                             contentDescription = stringResource(R.string.cd_episodes),
                             onClick = onShowEpisodesPanel,
+                            upFocusRequester = progressUpTarget,
+                            onDownKey = onHideControls,
+                            onFocused = onResetHideTimer
+                        )
+                    }
+
+                    if (introReport.canStart && !isLivePlayback) {
+                        ControlButton(
+                            icon = Icons.Default.Flag,
+                            contentDescription = stringResource(R.string.yp_report_button),
+                            onClick = onIntroReport,
                             upFocusRequester = progressUpTarget,
                             onDownKey = onHideControls,
                             onFocused = onResetHideTimer

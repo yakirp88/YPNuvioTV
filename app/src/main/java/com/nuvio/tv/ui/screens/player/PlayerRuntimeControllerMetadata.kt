@@ -354,6 +354,7 @@ internal fun PlayerRuntimeController.resetPostPlayOverlayState(clearEpisode: Boo
 }
 
 internal fun PlayerRuntimeController.evaluatePostPlayOverlayVisibility(positionMs: Long, durationMs: Long) {
+    if (_uiState.value.introDbReportingActive) return
     if (_playbackTimeline.value.isLive) return
     if (!hasRenderedFirstFrame) return
     // Short debrid/error clips must never arm next-episode auto-play (see #2819).
@@ -458,6 +459,7 @@ internal fun PlayerRuntimeController.showStreamSourceIndicator(stream: Stream) {
 }
 
 internal fun PlayerRuntimeController.updateActiveSkipInterval(positionMs: Long) {
+    if (_uiState.value.introDbReportingActive) return
     if (skipIntervals.isEmpty()) {
         if (_uiState.value.activeSkipInterval != null) {
             _uiState.update { it.copy(activeSkipInterval = null, skipIntervalDismissed = false) }

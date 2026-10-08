@@ -607,6 +607,7 @@ private fun String.reportSafeHost(): String {
 }
 
 internal fun PlayerRuntimeController.saveWatchProgressIfNeeded() {
+    if (_uiState.value.introDbReportingActive) return
     if (!hasRenderedFirstFrame) return
     val currentPosition = currentPlaybackPositionMs() ?: return
     val duration = getEffectiveDuration(currentPosition)
@@ -622,6 +623,7 @@ internal fun PlayerRuntimeController.saveWatchProgressIfNeeded() {
 }
 
 internal fun PlayerRuntimeController.saveWatchProgress() {
+    if (_uiState.value.introDbReportingActive) return
     if (!hasRenderedFirstFrame) return
     val currentPosition = currentPlaybackPositionMs() ?: return
     val duration = getEffectiveDuration(currentPosition)
@@ -656,6 +658,7 @@ private fun PlayerRuntimeController.isShortPlaceholderStream(): Boolean {
  * watched or trigger auto-play next.
  */
 internal fun PlayerRuntimeController.handleNaturalPlaybackEnded() {
+    if (_uiState.value.introDbReportingActive) return
     val position = currentPlaybackPositionMs() ?: 0L
     val duration = getEffectiveDuration(position)
     val hasFatalError = !_uiState.value.error.isNullOrBlank()
@@ -699,6 +702,7 @@ internal fun PlayerRuntimeController.cancelNextEpisodeAutoPlayOnFatalError() {
 }
 
 internal fun PlayerRuntimeController.saveWatchProgressInternal(position: Long, duration: Long, syncRemote: Boolean = true) {
+    if (_uiState.value.introDbReportingActive) return
     if (contentType.equals("cloud", ignoreCase = true)) {
         saveCloudLibraryProgress(position, duration, completed = false)
         return
@@ -1132,7 +1136,7 @@ internal fun PlayerRuntimeController.schedulePauseOverlay() {
             s.showSpeedDialog || s.showMoreDialog || s.showEpisodesPanel ||
             s.showSourcesPanel || s.showAudioOverlay || s.showStreamInfoOverlay ||
             s.showSubtitleTimingDialog || s.showSubtitleDelayOverlay
-        if (!s.isPlaying && s.pauseOverlayEnabled && s.error == null && !anyPanelOpen) {
+        if (!s.introDbReportingActive && !s.isPlaying && s.pauseOverlayEnabled && s.error == null && !anyPanelOpen) {
             _uiState.update { it.copy(showPauseOverlay = true, showControls = false) }
         }
     }

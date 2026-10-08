@@ -63,6 +63,8 @@ internal fun PlaybackSkipSegmentsSection(
     val internalPlayer = settings.playerPreference != PlayerPreference.EXTERNAL
     val autoSkipEnabled = internalPlayer && settings.skipIntroEnabled
 
+    IntroDbReportSettingsRow()
+
     SettingsToggleRow(
         title = stringResource(R.string.playback_skip_intro),
         subtitle = stringResource(R.string.playback_skip_intro_sub),

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="yp_report_button">Report segment</string>
+    <string name="yp_report_intro">Opening / theme song</string>
+    <string name="yp_report_recap">Previously on / recap</string>
+    <string name="yp_report_outro">Ending / credits</string>
+    <string name="yp_report_choose">Choose segment type</string>
+    <string name="yp_report_saved_start">Start saved: %1$s</string>
+    <string name="yp_report_finish">Finish</string>
+    <string name="yp_report_cancel">Cancel</string>
+    <string name="yp_report_review">Review timestamps</string>
+    <string name="yp_report_start">Start</string>
+    <string name="yp_report_end">End</string>
+    <string name="yp_report_frame">Frame at selected timestamp</string>
+    <string name="yp_report_loading_frame">Loading preview…</string>
+    <string name="yp_report_frame_unavailable">Preview unavailable on this stream. Times can still be adjusted.</string>
+    <string name="yp_report_send">Send to IntroDB</string>
+    <string name="yp_report_sending">Sending…</string>
+    <string name="yp_report_sent">Report sent to IntroDB.</string>
+    <string name="yp_report_exists">This segment is already defined. No report was sent.</string>
+    <string name="yp_report_check_failed">Could not check existing segments. Reporting is unavailable until the check succeeds.</string>
+    <string name="yp_report_key_failed">Check your IntroDB API key.</string>
+    <string name="yp_report_rate_limit">Too many requests. Wait before retrying.</string>
+    <string name="yp_report_invalid_range">The end must be after the start and within the video. IntroDB may also reject segment length.</string>
+    <string name="yp_report_send_failed">Could not send. Your draft is saved; you can retry later.</string>
+    <string name="yp_report_key_title">IntroDB reporting API key</string>
+    <string name="yp_report_key_info">Enter your personal IntroDB key. It is encrypted on this device. Leave blank to remove it.</string>
+    <string name="yp_report_save">Save</string>
+    <string name="yp_report_get_key">Open IntroDB</string>
+    <string name="yp_report_resume_draft">Resume saved draft</string>
+    <string name="yp_report_keep_draft">Save draft and close</string>
+    <string name="yp_report_enabled">IntroDB reporting</string>
+    <string name="yp_report_enabled_info">Mark missing recaps, openings and credits from the player.</string>
+    <string name="yp_app_name">YP Nuvio</string>
+</resources>
