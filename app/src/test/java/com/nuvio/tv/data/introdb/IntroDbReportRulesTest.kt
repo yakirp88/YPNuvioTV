@@ -35,4 +35,16 @@ class IntroDbReportRulesTest {
         assertFalse(IntroDbReportRules.validRange(500, 2500, 2000))
         assertTrue(IntroDbReportRules.validRange(0, 2000, 2000))
     }
+    @Test fun minuteAdjustmentsPreserveOrderingAndClampAtVideoBounds() {
+        for (step in listOf(60_000L, 300_000L, 600_000L)) {
+            assertEquals(600_000L to 1_200_000L + step,
+                IntroDbReportRules.adjust(600_000L, 1_200_000L, 3_600_000L, false, step))
+            assertEquals(600_000L - step to 1_200_000L,
+                IntroDbReportRules.adjust(600_000L, 1_200_000L, 3_600_000L, true, -step))
+            assertEquals(600_000L to 600_001L,
+                IntroDbReportRules.adjust(600_000L, 601_000L, 3_600_000L, false, -step))
+            assertEquals(0L to 1_200_000L,
+                IntroDbReportRules.adjust(10_000L, 1_200_000L, 3_600_000L, true, -step))
+        }
+    }
 }
