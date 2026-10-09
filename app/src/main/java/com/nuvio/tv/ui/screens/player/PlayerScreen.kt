@@ -315,8 +315,8 @@ fun PlayerScreen(
 
     val handleBackPress = handleBackPress@{
         if (introReport.stage == ReportStage.RECORDING) {
-            if (introReport.recordingPlayerControls) viewModel.introDbReport.focusReportControls()
-            else viewModel.introDbReport.showPlayerControls()
+            if (!introReport.recordingPlayerControls) viewModel.introDbReport.showPlayerControls()
+            else viewModel.hideControls()
             return@handleBackPress
         }
         if (introReport.active) {
