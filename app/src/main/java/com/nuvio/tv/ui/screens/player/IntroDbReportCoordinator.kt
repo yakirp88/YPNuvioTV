@@ -125,9 +125,10 @@ internal class IntroDbReportCoordinator(
 
     fun choose(segment: ReportSegment) {
         if (mutable.value.stage != ReportStage.CHOOSE || segment !in mutable.value.available) return
-        mutable.update { it.copy(stage = ReportStage.RECORDING, segment = segment) }
+        mutable.update { it.copy(stage = ReportStage.RECORDING, segment = segment, recordingPlayerControls = true) }
         controller.setPlaybackPaused(false)
-        controller._uiState.update { it.copy(showControls = true) }
+        controller.hideControls()
+        controller.scheduleHideControls()
     }
 
     fun showPlayerControls() {
