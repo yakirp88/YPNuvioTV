@@ -48,7 +48,7 @@ fun main() = runBlocking {
     report.send()
     check(repo.sends == 1 && repo.sentStart == 71623L && repo.sentEnd == 151000L)
     check(report.state.value.available == setOf(ReportSegment.OUTRO))
-    check(player.position == 150000L && player.playing) // Return to Finish position, not preview position.
+    check(player.position == 151000L && player.playing) // Return to Finish position, not preview position.
     report.begin(); report.choose(ReportSegment.OUTRO); player.position = 170000L; report.finish()
     repo.existingTypes += ReportSegment.OUTRO // Another contributor publishes during review.
     report.send()
@@ -77,11 +77,38 @@ fun main() = runBlocking {
     check(reopened.state.value.stage == ReportStage.REVIEW && reopened.state.value.startMs == 72123L)
     reopened.cancel()
     check(draftRepo.draft(ReportMedia("tt0903747", 1, 1)) == null)
-    check(draftPlayer.position == 200000L)
+    check(draftPlayer.position == 155000L && draftPlayer.playing)
     val disabledRepo = IntroDbReportRepository().apply { enabled = false }
     val disabled = IntroDbReportCoordinator(PlayerRuntimeController(), disabledRepo, MetaRepository(), scope)
     disabled.load()
     check(!disabled.state.value.canStart && disabledRepo.reads == 0)
+    val calibratePlayer = PlayerRuntimeController()
+    val calibrateRepo = IntroDbReportRepository()
+    val calibrate = IntroDbReportCoordinator(calibratePlayer, calibrateRepo, MetaRepository(), scope)
+    calibrate.load(); calibrate.begin(); calibrate.choose(ReportSegment.INTRO)
+    calibratePlayer.position = 200000; calibrate.finish()
+    calibrate.selectBoundary(true)
+    check(calibrate.state.value.calibratingStart == true && calibratePlayer.position == 72123L && !calibratePlayer.playing)
+    calibratePlayer.captureDelayMs = 80
+    calibrate.adjust(true, 500)
+    calibrate.adjust(true, 2000)
+    calibrate.adjust(true, 10000)
+    calibrate.send()
+    check(calibrateRepo.sends == 0) // Pending frame calibration cannot be submitted.
+    delay(250)
+    check(calibrate.state.value.startMs == 84623L && calibrate.state.value.startImage?.atMs == 84623L)
+    check(calibratePlayer.position == 84623L && !calibratePlayer.playing)
+    calibrate.endCalibration()
+    check(calibrate.state.value.calibratingStart == null && !calibratePlayer.playing)
+    calibrate.selectBoundary(false); delay(100)
+    calibrate.adjust(false, 500); delay(250)
+    check(calibrate.state.value.endMs == 200500L && calibratePlayer.position == 200500L)
+    calibrate.selectBoundary(true); delay(100)
+    calibrate.adjust(true, -500)
+    calibrate.cancel() // Cancellation during frame work restores the corrected end, never the preview.
+    delay(250)
+    check(calibratePlayer.position == 200500L && calibratePlayer.playing)
+    check(calibrate.state.value.stage == ReportStage.IDLE && calibrateRepo.sends == 0)
     scope.cancel()
     println("Reporting lifecycle checks passed: capture, preview correction, send, race blocking, offline lockout, draft restore, cancel")
 }
