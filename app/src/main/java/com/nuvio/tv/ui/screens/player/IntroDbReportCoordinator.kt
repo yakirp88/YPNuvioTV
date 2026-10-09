@@ -32,6 +32,7 @@ data class IntroDbReportState(
     val previewing: Boolean = false,
     val sending: Boolean = false,
     val recordingPlayerControls: Boolean = false,
+    val calibratingStart: Boolean? = null,
     val message: String? = null
 ) {
     val active get() = stage != ReportStage.IDLE
@@ -49,8 +50,6 @@ internal class IntroDbReportCoordinator(
     val state = mutable.asStateFlow()
     private var request: Job? = null
     private var preview: Job? = null
-    private var originalEnd = 0L
-    private var resumeAfterReview = false
     private var mediaIdentity = ""
 
     fun hasApiKey() = repository.apiKey() != null
@@ -93,11 +92,11 @@ internal class IntroDbReportCoordinator(
         if (!s.canStart || !hasApiKey()) return
         val duration = controller.currentPlaybackDurationMs()
         if (duration <= 0 || controller.playbackTimeline.value.isLive) return
-        resumeAfterReview = controller.hasActivePlayIntent()
         setActive(true)
         mutable.update { it.copy(stage = ReportStage.CHOOSE, startMs = position.coerceIn(0, duration),
             durationMs = duration, message = null) }
-        controller.hideControls()
+        controller.hideControlsJob?.cancel()
+        controller._uiState.update { it.copy(showControls = true) }
         // Thumbnails are reconstructed at the saved boundaries after Finish.
     }
 
@@ -111,7 +110,6 @@ internal class IntroDbReportCoordinator(
         if (s.stage != ReportStage.CHOOSE) return
         val draft = s.media?.let { repository.draft(it) } ?: return
         if (draft.segment !in s.available || !IntroDbReportRules.validRange(draft.start, draft.end, s.durationMs)) return
-        originalEnd = controller.currentPlaybackPositionMs() ?: s.startMs
         controller.setPlaybackPaused(true)
         mutable.update { it.copy(stage = ReportStage.REVIEW, segment = draft.segment, startMs = draft.start,
             endMs = draft.end, previewing = true, message = null) }
@@ -139,6 +137,7 @@ internal class IntroDbReportCoordinator(
 
     fun focusReportControls() {
         if (mutable.value.stage != ReportStage.RECORDING) return
+        controller.hideControlsJob?.cancel()
         mutable.update { it.copy(recordingPlayerControls = false) }
     }
 
@@ -149,7 +148,6 @@ internal class IntroDbReportCoordinator(
         if (!IntroDbReportRules.validRange(s.startMs, end, s.durationMs)) {
             mutable.update { it.copy(message = "invalid_range") }; return
         }
-        originalEnd = end
         s.media?.let { repository.saveDraft(it, requireNotNull(s.segment), s.startMs, end, s.durationMs) }
         controller.setPlaybackPaused(true)
         controller.hideControls()
@@ -164,18 +162,44 @@ internal class IntroDbReportCoordinator(
         }
     }
 
-    fun adjust(start: Boolean, delta: Long) {
+    /** Open a boundary on the paused main surface, without changing its saved time. */
+    fun selectBoundary(start: Boolean) {
         val s = mutable.value
         if (s.stage != ReportStage.REVIEW || s.sending || s.previewing) return
-        val (newStart, newEnd) = IntroDbReportRules.adjust(s.startMs, s.endMs, s.durationMs, start, delta)
-        mutable.update { it.copy(startMs = newStart, endMs = newEnd, previewing = true,
-            startImage = if (start) null else it.startImage, endImage = if (start) it.endImage else null, message = null) }
-        s.media?.let { repository.saveDraft(it, requireNotNull(s.segment), newStart, newEnd, s.durationMs) }
+        mutable.update { it.copy(calibratingStart = start, previewing = true, message = null) }
         preview?.cancel()
-        preview = scope.launch {
-            val frame = controller.captureReportFrame(if (start) newStart else newEnd)
-            mutable.update { it.copy(previewing = false, startImage = if (start) frame else it.startImage,
-                endImage = if (start) it.endImage else frame) }
+        preview = scope.launch { renderBoundary(start) }
+    }
+
+    fun endCalibration() {
+        if (mutable.value.stage == ReportStage.REVIEW) mutable.update { it.copy(calibratingStart = null) }
+    }
+
+    /** Coalesce remote repeats; only the latest requested boundary may publish a frame. */
+    fun adjust(start: Boolean, delta: Long) {
+        val s = mutable.value
+        if (s.stage != ReportStage.REVIEW || s.sending || (s.previewing && s.calibratingStart == null)) return
+        val (newStart, newEnd) = IntroDbReportRules.adjust(s.startMs, s.endMs, s.durationMs, start, delta)
+        if (newStart == s.startMs && newEnd == s.endMs) return
+        mutable.update { it.copy(startMs = newStart, endMs = newEnd, previewing = true, message = null) }
+        s.media?.let { repository.saveDraft(it, requireNotNull(s.segment), newStart, newEnd, s.durationMs) }
+        // Keep one decoder operation in flight. Repeated presses replace the target,
+        // rather than cancelling every seek and starving the video surface of frames.
+        if (preview?.isActive != true) preview = scope.launch { renderBoundary(start) }
+    }
+
+    private suspend fun renderBoundary(start: Boolean) {
+        while (true) {
+            val target = mutable.value
+            if (target.stage != ReportStage.REVIEW) return
+            val timestamp = if (start) target.startMs else target.endMs
+            val frame = controller.captureReportFrame(timestamp)
+            val current = mutable.value
+            if (current.stage != ReportStage.REVIEW) return
+            if ((if (start) current.startMs else current.endMs) != timestamp) continue
+            mutable.update { it.copy(previewing = false,
+                startImage = if (start) frame else it.startImage, endImage = if (start) it.endImage else frame) }
+            return
         }
     }
 
@@ -220,12 +244,12 @@ internal class IntroDbReportCoordinator(
         val s = mutable.value
         preview?.cancel()
         if (restore && s.stage == ReportStage.REVIEW) {
-            controller.seekPlaybackTo(originalEnd)
-            if (resumeAfterReview) controller.setPlaybackPaused(false)
+            controller.seekPlaybackTo(s.endMs)
+            controller.setPlaybackPaused(false)
         }
         setActive(false)
         mutable.update { it.copy(stage = ReportStage.IDLE, segment = null, startImage = null, endImage = null,
-            previewing = false, sending = false, recordingPlayerControls = false, message = null) }
+            previewing = false, sending = false, recordingPlayerControls = false, calibratingStart = null, message = null) }
         if (restore) controller.scheduleHideControls()
     }
 
