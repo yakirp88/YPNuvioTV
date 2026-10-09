@@ -10,39 +10,43 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.tv.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.*
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.tv.material3.Button
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.nuvio.tv.R
 import com.nuvio.tv.ui.screens.detail.requestFocusAfterFrames
 import com.nuvio.tv.data.introdb.IntroDbReportRepository
+import com.nuvio.tv.data.introdb.IntroDbReportRules
 import com.nuvio.tv.data.introdb.ReportSegment
 import java.util.Locale
 
@@ -84,117 +88,158 @@ internal fun showIntroDbKeyDialog(context: Context, repository: IntroDbReportRep
     dialog.show()
 }
 
+/** This popup is composed inside the flag's Box, so it follows the real button bounds. */
+@Composable
+internal fun IntroDbReportMenu(state: IntroDbReportState, coordinator: IntroDbReportCoordinator) {
+    val open = state.stage == ReportStage.CHOOSE ||
+        (state.stage == ReportStage.RECORDING && !state.recordingPlayerControls)
+    if (!open) return
+    val first = remember(state.stage) { FocusRequester() }
+    val gap = with(LocalDensity.current) { 10.dp.roundToPx() }
+    val position = remember(gap) { object : PopupPositionProvider {
+        override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
+            layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+            val x = (anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2)
+                .coerceIn(gap, (windowSize.width - popupContentSize.width - gap).coerceAtLeast(gap))
+            return IntOffset(x, (anchorBounds.top - popupContentSize.height - gap).coerceAtLeast(gap))
+        }
+    } }
+    Popup(popupPositionProvider = position,
+        onDismissRequest = { if (state.stage == ReportStage.CHOOSE) coordinator.cancel() else coordinator.showPlayerControls() },
+        properties = PopupProperties(focusable = true)) {
+        Column(Modifier.width(210.dp).background(Color(0xD9101722), RoundedCornerShape(16.dp)).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (state.stage == ReportStage.CHOOSE) {
+                state.available.sortedBy { it.ordinal }.forEachIndexed { index, segment ->
+                    Button(onClick = { coordinator.choose(segment) }, contentPadding = PaddingValues(10.dp, 6.dp),
+                        modifier = Modifier.fillMaxWidth().then(if (index == 0) Modifier.focusRequester(first) else Modifier)) {
+                        Text(stringResource(segment.labelResource()), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (coordinator.hasDraft()) Button(onClick = coordinator::resumeDraft) {
+                    Text(stringResource(R.string.yp_report_resume_draft), style = MaterialTheme.typography.bodySmall)
+                }
+            } else {
+                Button(onClick = coordinator::finish, modifier = Modifier.fillMaxWidth().focusRequester(first)) {
+                    Text(stringResource(R.string.yp_report_finish), style = MaterialTheme.typography.bodyMedium)
+                }
+                Button(onClick = coordinator::cancel, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.yp_report_cancel), style = MaterialTheme.typography.bodyMedium)
+                }
+                ReportMessage(state.message)
+            }
+        }
+        LaunchedEffect(Unit) { first.requestFocusAfterFrames() }
+    }
+}
+
 @Composable
 internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroDbReportCoordinator, onConfigureKey: () -> Unit) {
-    var adjustmentStep by remember(state.stage) { mutableStateOf(1000L) }
-    val firstFocus = remember(state.stage) { FocusRequester() }
-    var initialFocusPlaced by remember(state.stage, state.recordingPlayerControls) { mutableStateOf(false) }
-    LaunchedEffect(state.stage, state.previewing, state.recordingPlayerControls) {
-        if (state.active && !state.recordingPlayerControls && !initialFocusPlaced &&
-            !(state.stage == ReportStage.REVIEW && state.previewing)) {
-            firstFocus.requestFocusAfterFrames()
-            initialFocusPlaced = true
+    if (state.stage == ReportStage.RECORDING) {
+        val transition = rememberInfiniteTransition(label = "report activity")
+        val rotation by transition.animateFloat(0f, 360f,
+            infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "report ring")
+        val description = stringResource(R.string.yp_report_return)
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.align(Alignment.TopStart).padding(28.dp).size(40.dp)
+                .background(Color(0xD918202E), CircleShape)
+                .semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize().padding(2.dp)) {
+                    drawCircle(Color.White.copy(alpha = 0.18f), style = Stroke(2.dp.toPx()))
+                    drawArc(Color(0xFF8FC9FF), rotation, 100f, false, style = Stroke(2.dp.toPx()))
+                }
+                Icon(Icons.Default.Flag, null, Modifier.size(18.dp), tint = Color.White)
+            }
         }
     }
-    when (state.stage) {
-        ReportStage.IDLE -> Unit
-        ReportStage.CHOOSE -> Dialog(onDismissRequest = coordinator::cancel) {
-            Column(Modifier.width(420.dp).background(Color(0xFF18202E), RoundedCornerShape(24.dp)).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.yp_report_choose), style = MaterialTheme.typography.titleLarge)
-                Text(stringResource(R.string.yp_report_saved_start, reportTime(state.startMs)))
-                state.available.sortedBy { it.ordinal }.forEachIndexed { index, segment ->
-                    Button(onClick = { coordinator.choose(segment) },
-                        modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier) {
-                        Text(stringResource(segment.labelResource()))
-                    }
-                }
-                if (coordinator.hasDraft()) {
-                    Button(onClick = coordinator::resumeDraft) { Text(stringResource(R.string.yp_report_resume_draft)) }
-                }
-                Button(onClick = coordinator::cancel) { Text(stringResource(R.string.yp_report_cancel)) }
-            }
+    if (state.stage == ReportStage.REVIEW) IntroDbReview(state, coordinator, onConfigureKey)
+}
+
+@Composable
+private fun IntroDbReview(state: IntroDbReportState, coordinator: IntroDbReportCoordinator, onConfigureKey: () -> Unit) {
+    val startFocus = remember { FocusRequester() }
+    val endFocus = remember { FocusRequester() }
+    val calibrationFocus = remember { FocusRequester() }
+    var placed by remember { mutableStateOf(false) }
+    var previousSelection by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(state.previewing, state.calibratingStart) {
+        val selected = state.calibratingStart
+        if (selected != null) {
+            if (previousSelection != selected) calibrationFocus.requestFocusAfterFrames()
+            previousSelection = selected
+        } else if (previousSelection != null) {
+            (if (previousSelection == true) startFocus else endFocus).requestFocusAfterFrames()
+            previousSelection = null
+        } else if (!placed && !state.previewing) {
+            startFocus.requestFocusAfterFrames(); placed = true
         }
-        ReportStage.RECORDING -> {
-            // Status only: this indicator never takes focus from playback controls.
-            val transition = rememberInfiniteTransition(label = "report activity")
-            val rotation by transition.animateFloat(0f, 360f,
-                infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "report ring")
-            val description = stringResource(R.string.yp_report_return)
-            Box(Modifier.fillMaxSize()) {
-                Box(Modifier.align(Alignment.TopStart).padding(28.dp).size(40.dp)
-                    .background(Color(0xD918202E), CircleShape)
-                    .semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.fillMaxSize().padding(2.dp)) {
-                        drawCircle(Color.White.copy(alpha = 0.18f), style = Stroke(2.dp.toPx()))
-                        drawArc(Color(0xFF8FC9FF), rotation, 100f, false, style = Stroke(2.dp.toPx()))
-                    }
-                    Icon(Icons.Default.Flag, null, Modifier.size(18.dp), tint = Color.White)
-                }
-            }
-            if (!state.recordingPlayerControls) {
-                Dialog(onDismissRequest = coordinator::showPlayerControls) {
-                    Column(Modifier.width(340.dp).background(Color(0xFF18202E), RoundedCornerShape(24.dp)).padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(state.segment!!.labelResource()), style = MaterialTheme.typography.titleMedium)
-                        Button(onClick = coordinator::finish, modifier = Modifier.fillMaxWidth().focusRequester(firstFocus)) {
-                            Text(stringResource(R.string.yp_report_finish))
-                        }
-                        Button(onClick = coordinator::cancel, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.yp_report_cancel))
-                        }
-                        ReportMessage(state.message)
-                    }
-                }
-            }
-        }
-        ReportStage.REVIEW -> Dialog(onDismissRequest = coordinator::cancel,
-            properties = DialogProperties(usePlatformDefaultWidth = false,
-                dismissOnBackPress = !state.sending, dismissOnClickOutside = false)) {
-            Column(Modifier.widthIn(max = 680.dp).fillMaxWidth(0.85f)
-                .heightIn(max = (LocalConfiguration.current.screenHeightDp - 32).coerceAtLeast(160).dp)
-                .verticalScroll(rememberScrollState())
-                .background(Color(0xFF18202E), RoundedCornerShape(24.dp)).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.yp_report_review), style = MaterialTheme.typography.titleLarge)
-                val media = state.media!!
-                Text(stringResource(state.segment!!.labelResource()) + " · " + media.imdbId +
-                    if (media.movie) "" else " · S${media.season} E${media.episode}",
-                    style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.65f))
+    }
+    Popup(alignment = Alignment.Center,
+        onDismissRequest = { if (state.calibratingStart != null) coordinator.endCalibration() else coordinator.cancel() },
+        properties = PopupProperties(focusable = true, dismissOnClickOutside = false)) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).widthIn(max = 520.dp).fillMaxWidth(0.7f)
+                .background(Color(0xBB101722), RoundedCornerShape(20.dp)).padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ReportBoundary(state, true, coordinator, Modifier.weight(1f), firstFocus, adjustmentStep)
-                    ReportBoundary(state, false, coordinator, Modifier.weight(1f), null, adjustmentStep)
+                    BoundaryImage(state, true, coordinator, startFocus, Modifier.weight(1f))
+                    BoundaryImage(state, false, coordinator, endFocus, Modifier.weight(1f))
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(listOf(1000L, 5000L, 10000L), listOf(60000L, 300000L, 600000L)).forEach { steps ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            steps.forEach { step ->
-                                Button(onClick = { adjustmentStep = step }, enabled = !state.sending,
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)) {
-                                    Text((if (adjustmentStep == step) "• " else "") + adjustmentLabel(step))
-                                }
-                            }
-                        }
-                    }
-                }
-                if (state.previewing) Text(stringResource(R.string.yp_report_loading_frame))
-                ReportMessage(state.message)
-                if (state.message == "key_failed") {
-                    Button(onClick = onConfigureKey) { Text(stringResource(R.string.yp_report_key_title)) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = coordinator::send, enabled = !state.sending && !state.previewing) {
-                        Text(stringResource(if (state.sending) R.string.yp_report_sending else R.string.yp_report_send))
-                    }
-                    if (state.message != null) {
-                        Button(onClick = coordinator::keepDraft, enabled = !state.sending) {
-                            Text(stringResource(R.string.yp_report_keep_draft))
-                        }
-                    }
-                    Button(onClick = coordinator::cancel, enabled = !state.sending) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = coordinator::cancel, enabled = !state.sending, modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.yp_report_cancel))
                     }
+                    Button(onClick = coordinator::send, enabled = !state.sending && !state.previewing, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(if (state.sending) R.string.yp_report_sending else R.string.yp_report_send))
+                    }
+                }
+                // Error recovery appears only when needed; credentials are never shown here.
+                ReportMessage(state.message)
+                if (state.message == "key_failed") Button(onClick = onConfigureKey) {
+                    Text(stringResource(R.string.yp_report_key_title))
+                }
+                if (state.message != null) Button(onClick = coordinator::keepDraft, enabled = !state.sending) {
+                    Text(stringResource(R.string.yp_report_keep_draft))
+                }
+            }
+            state.calibratingStart?.let { start ->
+                val timestamp = if (start) state.startMs else state.endMs
+                Column(Modifier.align(Alignment.TopCenter).padding(top = 32.dp).widthIn(max = 560.dp).fillMaxWidth(0.65f)
+                    .background(Color(0xCC0F0F0F), RoundedCornerShape(26.dp)).padding(22.dp)
+                    .focusRequester(calibrationFocus)
+                    .onPreviewKeyEvent { event ->
+                        val key = event.nativeKeyEvent
+                        val direction = key.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT || key.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT
+                        if (direction) {
+                            if (key.action == AndroidKeyEvent.ACTION_DOWN) coordinator.adjust(start,
+                                IntroDbReportRules.calibrationDelta(key.repeatCount, key.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT))
+                            true
+                        } else if (key.keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER || key.keyCode == AndroidKeyEvent.KEYCODE_ENTER) {
+                            if (key.action == AndroidKeyEvent.ACTION_UP) coordinator.endCalibration()
+                            true
+                        } else false
+                    }.focusable(), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(if (start) R.string.yp_report_calibrate_start else R.string.yp_report_calibrate_end),
+                        style = MaterialTheme.typography.titleMedium)
+                    Text(reportTime(timestamp), style = MaterialTheme.typography.bodyMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text("‹")
+                        Canvas(Modifier.weight(1f).height(26.dp)) {
+                            val cy = size.height / 2
+                            drawLine(Color.White.copy(alpha = 0.4f), Offset(0f, cy), Offset(size.width, cy), 2.dp.toPx())
+                            repeat(11) { i ->
+                                val x = size.width * i / 10
+                                drawLine(Color.White.copy(alpha = 0.5f), Offset(x, cy - 4.dp.toPx()), Offset(x, cy + 4.dp.toPx()), 1.dp.toPx())
+                            }
+                            val fraction = (timestamp.toFloat() / state.durationMs.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            drawCircle(Color(0xFF4AA3FF), 5.dp.toPx(), Offset(size.width * fraction, cy))
+                        }
+                        Text("›")
+                    }
+                    Text(stringResource(R.string.yp_report_calibration_hint), style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.65f))
+                    if (state.previewing) Text(stringResource(R.string.yp_report_loading_frame), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -202,26 +247,19 @@ internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroD
 }
 
 @Composable
-private fun ReportBoundary(state: IntroDbReportState, start: Boolean, coordinator: IntroDbReportCoordinator,
-    modifier: Modifier, focus: FocusRequester?, step: Long) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(if (start) R.string.yp_report_start else R.string.yp_report_end) + ": " +
-            reportTime(if (start) state.startMs else state.endMs))
-        val bitmap = if (start) state.startImage else state.endImage
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(Color.Black), contentAlignment = Alignment.Center) {
-            if (bitmap != null) Image(bitmap.asImageBitmap(), stringResource(R.string.yp_report_frame), Modifier.fillMaxSize())
-            else Text(stringResource(if (state.previewing) R.string.yp_report_loading_frame else R.string.yp_report_frame_unavailable),
-                modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(-step, step).forEachIndexed { index, delta ->
-                Button(onClick = { coordinator.adjust(start, delta) }, enabled = !state.sending && !state.previewing,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.weight(1f).then(if (index == 0 && focus != null) Modifier.focusRequester(focus) else Modifier)) {
-                    Text((if (delta < 0) "− " else "+ ") + adjustmentLabel(step))
-                }
+private fun BoundaryImage(state: IntroDbReportState, start: Boolean, coordinator: IntroDbReportCoordinator,
+    focus: FocusRequester, modifier: Modifier) {
+    val bitmap = if (start) state.startImage else state.endImage
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Button(onClick = { coordinator.selectBoundary(start) }, enabled = !state.sending && !state.previewing,
+            contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9).focusRequester(focus)) {
+            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                if (bitmap != null) Image(bitmap.asImageBitmap(), stringResource(R.string.yp_report_frame), Modifier.fillMaxSize())
+                else Text(stringResource(if (state.previewing) R.string.yp_report_loading_frame else R.string.yp_report_frame_unavailable),
+                    modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
             }
         }
+        Text(stringResource(if (start) R.string.yp_report_start else R.string.yp_report_end), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -242,8 +280,3 @@ internal fun ReportMessage(message: String?) {
 
 internal fun reportTime(ms: Long): String = String.format(Locale.ROOT, "%02d:%02d:%02d.%03d",
     ms / 3600000, ms / 60000 % 60, ms / 1000 % 60, ms % 1000)
-
-@Composable
-private fun adjustmentLabel(step: Long): String = if (step >= 60000L)
-    stringResource(R.string.yp_report_minutes, (step / 60000L).toInt())
-    else "${step / 1000}s"
