@@ -7,6 +7,9 @@
     <string name="yp_report_choose">Choose segment type</string>
     <string name="yp_report_saved_start">Start saved: %1$s</string>
     <string name="yp_report_finish">Finish</string>
+    <string name="yp_report_player_controls">Player controls</string>
+    <string name="yp_report_return">Return to report</string>
+    <string name="yp_report_minutes">%1$d min</string>
     <string name="yp_report_cancel">Cancel</string>
     <string name="yp_report_review">Review timestamps</string>
     <string name="yp_report_start">Start</string>
