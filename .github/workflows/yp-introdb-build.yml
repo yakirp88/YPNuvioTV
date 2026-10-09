@@ -40,7 +40,7 @@ jobs:
         run: >
           ./gradlew -Pkotlin.compiler.execution.strategy=in-process
           "-Dorg.gradle.jvmargs=-Xmx5120m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
-          :app:testFullDebugUnitTest --tests com.nuvio.tv.data.introdb.IntroDbReportRulesTest
+          :app:testFullDebugUnitTest --tests "com.nuvio.tv.data.introdb.*"
           :app:assembleFullDebug --no-daemon --max-workers=1
       - uses: actions/upload-artifact@v4
         with:
