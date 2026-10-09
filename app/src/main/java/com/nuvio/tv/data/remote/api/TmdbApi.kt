@@ -8,6 +8,32 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface TmdbApi {
+    @GET("trending/{kind}/week")
+    suspend fun discoveryTrending(@Path("kind") kind: String, @Query("api_key") apiKey: String,
+        @Query("page") page: Int, @Query("language") language: String? = null): Response<TmdbDiscoverResponse>
+
+    @GET("{kind}/{id}/translations")
+    suspend fun discoveryTranslations(@Path("kind") kind: String, @Path("id") id: Int,
+        @Query("api_key") apiKey: String): Response<DiscoveryTranslationsResponse>
+
+    @GET("{kind}/{id}/keywords")
+    suspend fun discoveryKeywords(@Path("kind") kind: String, @Path("id") id: Int,
+        @Query("api_key") apiKey: String): Response<DiscoveryKeywordsResponse>
+
+    @GET("discover/{kind}")
+    suspend fun discoverContent(@Path("kind") kind: String, @Query("api_key") apiKey: String,
+        @retrofit2.http.QueryMap filters: Map<String, String>): Response<TmdbDiscoverResponse>
+
+    @GET("search/person")
+    suspend fun searchPeople(@Query("api_key") apiKey: String, @Query("query") query: String,
+        @Query("language") language: String? = null): Response<DiscoveryPeopleResponse>
+
+    @GET("configuration/languages")
+    suspend fun discoveryLanguages(@Query("api_key") apiKey: String): Response<List<DiscoveryLanguage>>
+
+    @GET("configuration/countries")
+    suspend fun discoveryCountries(@Query("api_key") apiKey: String, @Query("language") language: String = "he"): Response<List<DiscoveryCountry>>
+
     
     @GET("find/{external_id}")
     suspend fun findByExternalId(
@@ -350,7 +376,9 @@ data class TmdbDetailsResponse(
     @Json(name = "poster_path") val posterPath: String? = null,
     @Json(name = "last_air_date") val lastAirDate: String? = null,
     @Json(name = "status") val status: String? = null,
-    @Json(name = "belongs_to_collection") val belongsToCollection: TmdbCollectionSummary? = null
+    @Json(name = "belongs_to_collection") val belongsToCollection: TmdbCollectionSummary? = null,
+    @Json(name = "vote_count") val voteCount: Int? = null,
+    @Json(name = "popularity") val popularity: Double? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -745,3 +773,23 @@ data class TmdbNetworkDetailsResponse(
     @Json(name = "logo_path") val logoPath: String? = null,
     @Json(name = "origin_country") val originCountry: String? = null
 )
+
+@JsonClass(generateAdapter = true)
+data class DiscoveryPeopleResponse(@Json(name = "results") val results: List<TmdbPersonResponse> = emptyList())
+@JsonClass(generateAdapter = true)
+data class DiscoveryLanguage(@Json(name = "iso_639_1") val code: String, @Json(name = "english_name") val englishName: String, @Json(name = "name") val name: String)
+@JsonClass(generateAdapter = true)
+data class DiscoveryCountry(@Json(name = "iso_3166_1") val code: String, @Json(name = "english_name") val englishName: String, @Json(name = "native_name") val name: String? = null)
+
+@JsonClass(generateAdapter = true)
+data class DiscoveryKeywordsResponse(@Json(name = "keywords") val keywords: List<TmdbKeywordSearchResult>? = null,
+    @Json(name = "results") val results: List<TmdbKeywordSearchResult>? = null)
+
+@JsonClass(generateAdapter = true)
+data class DiscoveryTranslationsResponse(@Json(name = "translations") val translations: List<DiscoveryTranslation> = emptyList())
+@JsonClass(generateAdapter = true)
+data class DiscoveryTranslation(@Json(name = "iso_639_1") val language: String,
+    @Json(name = "data") val data: DiscoveryTranslationData)
+@JsonClass(generateAdapter = true)
+data class DiscoveryTranslationData(@Json(name = "title") val title: String? = null,
+    @Json(name = "name") val name: String? = null, @Json(name = "overview") val overview: String? = null)

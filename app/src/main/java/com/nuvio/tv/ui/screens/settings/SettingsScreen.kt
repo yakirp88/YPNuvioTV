@@ -2,6 +2,9 @@
 
 package com.nuvio.tv.ui.screens.settings
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+
 import com.nuvio.tv.ui.theme.NuvioTheme
 
 import androidx.activity.compose.BackHandler
@@ -926,24 +929,20 @@ private fun ContentDiscoverySettingsContent(
     initialFocusRequester: FocusRequester?
 ) {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)
     ) {
         SettingsDetailHeader(
             title = stringResource(R.string.settings_content_discovery),
             subtitle = stringResource(R.string.settings_content_discovery_subtitle)
         )
+        DiscoverySettingsContent(initialFocusRequester)
         SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
             SettingsActionRow(
                 title = stringResource(R.string.addon_title),
                 subtitle = stringResource(R.string.settings_content_discovery_addons_subtitle),
                 onClick = onNavigateToAddons,
-                leadingIcon = Icons.Default.Extension,
-                modifier = if (initialFocusRequester != null) {
-                    Modifier.focusRequester(initialFocusRequester)
-                } else {
-                    Modifier
-                }
+                leadingIcon = Icons.Default.Extension
             )
             if (showPlugins) {
                 SettingsActionRow(

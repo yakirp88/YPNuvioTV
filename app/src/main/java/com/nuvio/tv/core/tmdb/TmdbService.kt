@@ -8,13 +8,13 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "TmdbService"
-private val TMDB_API_KEY = BuildConfig.TMDB_API_KEY
 
 /**
  * Service to handle TMDB ID conversions and lookups.
@@ -22,7 +22,8 @@ private val TMDB_API_KEY = BuildConfig.TMDB_API_KEY
  */
 @Singleton
 class TmdbService @Inject constructor(
-    private val tmdbApi: TmdbApi
+    private val tmdbApi: TmdbApi,
+    private val discoveryPreferences: com.nuvio.tv.data.local.DiscoveryPreferences? = null
 ) {
     // Cache: IMDB ID -> TMDB ID (keyed by "$imdbId:$mediaType")
     private val imdbToTmdbCache = ConcurrentHashMap<String, Int>()
@@ -70,7 +71,7 @@ class TmdbService @Inject constructor(
             
             val response = tmdbApi.findByExternalId(
                 externalId = imdbId,
-                apiKey = TMDB_API_KEY,
+                apiKey = configuredApiKey(),
                 externalSource = "imdb_id"
             )
             
@@ -150,9 +151,9 @@ class TmdbService @Inject constructor(
             Log.d(TAG, "Looking up IMDB ID for TMDB: $tmdbId (type: $mediaType)")
             
             val response = when (normalizedType) {
-                "movie" -> tmdbApi.getMovieExternalIds(tmdbId, TMDB_API_KEY)
-                "tv", "series" -> tmdbApi.getTvExternalIds(tmdbId, TMDB_API_KEY)
-                else -> tmdbApi.getMovieExternalIds(tmdbId, TMDB_API_KEY)
+                "movie" -> tmdbApi.getMovieExternalIds(tmdbId, configuredApiKey())
+                "tv", "series" -> tmdbApi.getTvExternalIds(tmdbId, configuredApiKey())
+                else -> tmdbApi.getMovieExternalIds(tmdbId, configuredApiKey())
             }
             
             if (!response.isSuccessful) {
@@ -281,7 +282,9 @@ class TmdbService @Inject constructor(
     fun cachedTmdbId(imdbId: String): Int? =
         imdbToTmdbCache["$imdbId:movie"] ?: imdbToTmdbCache["$imdbId:tv"]
 
-    fun apiKey(): String = TMDB_API_KEY
+    fun apiKey(): String = BuildConfig.TMDB_API_KEY
+
+    suspend fun configuredApiKey(): String = discoveryPreferences?.preferences?.first()?.get(androidx.datastore.preferences.core.stringPreferencesKey("tmdb_key"))?.takeIf { it.isNotBlank() } ?: apiKey()
 
     /**
      * Fetches backdrop and poster URLs from TMDB for the given IMDB ID.
@@ -295,9 +298,9 @@ class TmdbService @Inject constructor(
             runCatching {
                 val isMovie = normalizeMediaType(mediaType) == "movie"
                 val response = if (isMovie)
-                    tmdbApi.getMovieDetails(tmdbId, TMDB_API_KEY)
+                    tmdbApi.getMovieDetails(tmdbId, configuredApiKey())
                 else
-                    tmdbApi.getTvDetails(tmdbId, TMDB_API_KEY)
+                    tmdbApi.getTvDetails(tmdbId, configuredApiKey())
                 val body = response.body() ?: return@runCatching null
                 TmdbImages(
                     backdropUrl = body.backdropPath?.let { "https://image.tmdb.org/t/p/w1280$it" },
