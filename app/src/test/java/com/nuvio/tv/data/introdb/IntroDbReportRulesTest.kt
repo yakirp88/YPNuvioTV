@@ -5,6 +5,13 @@ import org.junit.Test
 
 class IntroDbReportRulesTest {
     private val tv = ReportMedia("tt0903747", 1, 1)
+    @Test fun remoteTapAndHoldAccelerateInBothDirections() {
+        assertEquals(500L, IntroDbReportRules.calibrationDelta(0, true))
+        assertEquals(-500L, IntroDbReportRules.calibrationDelta(0, false))
+        assertEquals(2000L, IntroDbReportRules.calibrationDelta(1, true))
+        assertEquals(10000L, IntroDbReportRules.calibrationDelta(8, true))
+        assertEquals(-30000L, IntroDbReportRules.calibrationDelta(20, false))
+    }
     @Test fun existingOpeningLeavesOnlyMissingKinds() {
         assertEquals(setOf(ReportSegment.RECAP, ReportSegment.OUTRO),
             IntroDbReportRules.available(tv, setOf(ReportSegment.INTRO)))
