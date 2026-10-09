@@ -6,9 +6,9 @@
     <string name="yp_report_outro">סיום / כתוביות</string>
     <string name="yp_report_choose">בחר סוג קטע</string>
     <string name="yp_report_saved_start">זמן התחלה נשמר: %1$s</string>
-    <string name="yp_report_finish">סיום</string>
+    <string name="yp_report_finish">סיום דיווח</string>
     <string name="yp_report_player_controls">פקדי ניגון</string>
-    <string name="yp_report_return">חזרה לדיווח</string>
+    <string name="yp_report_return">דיווח פעיל</string>
     <string name="yp_report_minutes">%1$d דק׳</string>
     <string name="yp_report_cancel">ביטול</string>
     <string name="yp_report_review">בדיקת זמני הדיווח</string>
