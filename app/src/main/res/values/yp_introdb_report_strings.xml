@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="yp_report_button">Report segment</string>
-    <string name="yp_report_intro">Opening / theme song</string>
-    <string name="yp_report_recap">Previously on / recap</string>
-    <string name="yp_report_outro">Ending / credits</string>
+    <string name="yp_report_intro">Opening</string>
+    <string name="yp_report_recap">Recap</string>
+    <string name="yp_report_outro">Credits</string>
     <string name="yp_report_choose">Choose segment type</string>
     <string name="yp_report_saved_start">Start saved: %1$s</string>
     <string name="yp_report_finish">Finish report</string>
@@ -17,7 +17,7 @@
     <string name="yp_report_frame">Frame at selected timestamp</string>
     <string name="yp_report_loading_frame">Loading preview…</string>
     <string name="yp_report_frame_unavailable">Preview unavailable on this stream. Times can still be adjusted.</string>
-    <string name="yp_report_send">Send to IntroDB</string>
+    <string name="yp_report_send">Confirm and report</string>
     <string name="yp_report_sending">Sending…</string>
     <string name="yp_report_sent">Report sent to IntroDB.</string>
     <string name="yp_report_exists">This segment is already defined. No report was sent.</string>
@@ -35,4 +35,7 @@
     <string name="yp_report_enabled">IntroDB reporting</string>
     <string name="yp_report_enabled_info">Mark missing recaps, openings and credits from the player.</string>
     <string name="yp_app_name">YP Nuvio</string>
+    <string name="yp_report_calibrate_start">Adjust start</string>
+    <string name="yp_report_calibrate_end">Adjust end</string>
+    <string name="yp_report_calibration_hint">Tap: 0.5s · Hold: fast seek · OK: return</string>
 </resources>
