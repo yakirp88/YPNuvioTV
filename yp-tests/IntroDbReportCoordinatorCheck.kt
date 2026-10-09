@@ -20,6 +20,13 @@ fun main() = runBlocking {
     report.choose(ReportSegment.INTRO)
     check(report.state.value.stage == ReportStage.CHOOSE) // Existing kinds cannot be chosen.
     report.choose(ReportSegment.RECAP)
+    check(!report.state.value.allowsPlayerControls)
+    report.showPlayerControls()
+    check(report.state.value.allowsPlayerControls && player._uiState.value.showControls)
+    player.seekPlaybackTo(120000L)
+    report.focusReportControls()
+    check(report.state.value.stage == ReportStage.RECORDING && !report.state.value.allowsPlayerControls)
+    check(report.state.value.startMs == 72123L && player.position == 120000L)
     player.position = 70000L
     report.finish()
     check(report.state.value.stage == ReportStage.RECORDING && player.playing)
@@ -27,6 +34,9 @@ fun main() = runBlocking {
     report.finish()
     check(!player.playing)
     check(report.state.value.endMs == 150000L)
+    check(!report.state.value.allowsPlayerControls)
+    report.showPlayerControls()
+    check(!report.state.value.allowsPlayerControls) // Review cannot accidentally hand control back.
     check(report.state.value.startImage?.atMs == 72123L)
     check(report.state.value.endImage?.atMs == 150000L)
     report.adjust(true, -500)
