@@ -31,9 +31,11 @@ data class IntroDbReportState(
     val endImage: Bitmap? = null,
     val previewing: Boolean = false,
     val sending: Boolean = false,
+    val recordingPlayerControls: Boolean = false,
     val message: String? = null
 ) {
     val active get() = stage != ReportStage.IDLE
+    val allowsPlayerControls get() = !active || (stage == ReportStage.RECORDING && recordingPlayerControls)
     val canStart get() = !checking && media != null && available.isNotEmpty() && !active
 }
 
@@ -125,6 +127,18 @@ internal class IntroDbReportCoordinator(
         if (mutable.value.stage != ReportStage.CHOOSE || segment !in mutable.value.available) return
         mutable.update { it.copy(stage = ReportStage.RECORDING, segment = segment) }
         controller.setPlaybackPaused(false)
+        controller._uiState.update { it.copy(showControls = true) }
+    }
+
+    fun showPlayerControls() {
+        if (mutable.value.stage != ReportStage.RECORDING) return
+        mutable.update { it.copy(recordingPlayerControls = true) }
+        controller._uiState.update { it.copy(showControls = true) }
+    }
+
+    fun focusReportControls() {
+        if (mutable.value.stage != ReportStage.RECORDING) return
+        mutable.update { it.copy(recordingPlayerControls = false) }
     }
 
     fun finish() {
@@ -137,7 +151,9 @@ internal class IntroDbReportCoordinator(
         originalEnd = end
         s.media?.let { repository.saveDraft(it, requireNotNull(s.segment), s.startMs, end, s.durationMs) }
         controller.setPlaybackPaused(true)
-        mutable.update { it.copy(stage = ReportStage.REVIEW, endMs = end, previewing = true, message = null) }
+        controller.hideControls()
+        mutable.update { it.copy(stage = ReportStage.REVIEW, endMs = end, previewing = true,
+            recordingPlayerControls = false, message = null) }
         preview?.cancel()
         preview = scope.launch {
             val start = controller.captureReportFrame(s.startMs)
@@ -208,7 +224,7 @@ internal class IntroDbReportCoordinator(
         }
         setActive(false)
         mutable.update { it.copy(stage = ReportStage.IDLE, segment = null, startImage = null, endImage = null,
-            previewing = false, sending = false, message = null) }
+            previewing = false, sending = false, recordingPlayerControls = false, message = null) }
         if (restore) controller.scheduleHideControls()
     }
 
