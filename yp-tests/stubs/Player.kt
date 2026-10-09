@@ -16,6 +16,8 @@ class PlayerRuntimeController {
     val _uiState = MutableStateFlow(FakeUiState())
     var nextEpisodeAutoPlayJob: Job? = null
     var pauseOverlayJob: Job? = null
+    var hideControlsJob: Job? = null
+    var captureDelayMs = 0L
     var position = 72_123L
     var duration = 3600_000L
     var playing = true
@@ -29,6 +31,7 @@ class PlayerRuntimeController {
     fun seekPlaybackTo(at: Long) { position = at }
 }
 suspend fun PlayerRuntimeController.captureReportFrame(atMs: Long? = null): Bitmap? {
+    if (captureDelayMs > 0) kotlinx.coroutines.delay(captureDelayMs)
     if (atMs != null) position = atMs
     return Bitmap(position)
 }
