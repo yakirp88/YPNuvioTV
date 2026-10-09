@@ -20,13 +20,15 @@ fun main() = runBlocking {
     report.choose(ReportSegment.INTRO)
     check(report.state.value.stage == ReportStage.CHOOSE) // Existing kinds cannot be chosen.
     report.choose(ReportSegment.RECAP)
-    check(!report.state.value.allowsPlayerControls)
+    check(report.state.value.allowsPlayerControls && player.playing)
     report.showPlayerControls()
     check(report.state.value.allowsPlayerControls && player._uiState.value.showControls)
     player.seekPlaybackTo(120000L)
     report.focusReportControls()
     check(report.state.value.stage == ReportStage.RECORDING && !report.state.value.allowsPlayerControls)
     check(report.state.value.startMs == 72123L && player.position == 120000L)
+    report.showPlayerControls() // Dismissing Finish/Cancel resumes normal controls without losing the report.
+    check(report.state.value.stage == ReportStage.RECORDING && report.state.value.allowsPlayerControls)
     player.position = 70000L
     report.finish()
     check(report.state.value.stage == ReportStage.RECORDING && player.playing)
