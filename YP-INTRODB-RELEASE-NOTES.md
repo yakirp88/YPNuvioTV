@@ -1,3 +1,13 @@
+# Minimal IntroDB report controls
+
+Version `1.1.0-beta.5-yp-introdb.4` (1071).
+
+Choose a report type after clicking the player flag. Recording shows only a small circular flag opposite the clock, with a rotating blue arc. The icon uses the same Material Flag as the player controls. Playback and seeking remain available; controls hide normally. Click the player flag again for Finish report / Cancel. Back dismisses that menu without discarding the report; during recording it hides player controls.
+
+Review uses a compact dialog with two frame previews and independent minus/plus controls. Select the adjustment size in two rows: 1 / 5 / 10 seconds, then 1 / 5 / 10 minutes. Start and end remain clamped to valid video bounds. Confirmation pauses playback and restores the finish position on exit.
+
+Reporting lifecycle checks passed locally; the CI workflow runs eight reporting JUnit tests, vital lint and APK assembly. Physical TV layout and focus still require device testing.
+
 # YP Nuvio — IntroDB reporting test build
 
 Choose `app-full-universal-debug.apk` when the device architecture is unknown.
