@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import android.graphics.Bitmap
 
 data class FakeUiState(val introDbReportingActive: Boolean = false, val activeSkipInterval: String? = null,
-    val showPauseOverlay: Boolean = false, val postPlayMode: String? = null)
+    val showPauseOverlay: Boolean = false, val postPlayMode: String? = null, val showControls: Boolean = false)
 data class FakeTimeline(val isLive: Boolean = false)
 class PlayerRuntimeController {
     var contentId: String? = "tt0903747"
