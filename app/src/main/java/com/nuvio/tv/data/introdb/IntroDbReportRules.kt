@@ -10,6 +10,12 @@ data class ReportMedia(val imdbId: String, val season: Int? = null, val episode:
 }
 
 object IntroDbReportRules {
+    /** Native DPAD repeats accelerate; an individual click is always half a second. */
+    fun calibrationDelta(repeatCount: Int, forward: Boolean): Long {
+        val step = when { repeatCount >= 20 -> 30000L; repeatCount >= 8 -> 10000L; repeatCount > 0 -> 2000L; else -> 500L }
+        return if (forward) step else -step
+    }
+
     fun available(media: ReportMedia, existing: Set<ReportSegment>): Set<ReportSegment> =
         (if (media.movie) setOf(ReportSegment.OUTRO) else ReportSegment.entries.toSet()) - existing
 
