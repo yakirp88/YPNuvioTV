@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="yp_report_button">דיווח על קטע</string>
-    <string name="yp_report_intro">פתיחה / שיר פתיחה</string>
-    <string name="yp_report_recap">תקציר הפרקים הקודמים</string>
-    <string name="yp_report_outro">סיום / כתוביות</string>
+    <string name="yp_report_intro">פתיחה</string>
+    <string name="yp_report_recap">תקציר</string>
+    <string name="yp_report_outro">קרדיטים</string>
     <string name="yp_report_choose">בחר סוג קטע</string>
     <string name="yp_report_saved_start">זמן התחלה נשמר: %1$s</string>
     <string name="yp_report_finish">סיום דיווח</string>
@@ -17,7 +17,7 @@
     <string name="yp_report_frame">תמונה בזמן שנבחר</string>
     <string name="yp_report_loading_frame">טוען תמונה…</string>
     <string name="yp_report_frame_unavailable">אין תמונה זמינה במקור זה. ניתן לתקן את הזמנים.</string>
-    <string name="yp_report_send">שלח ל־IntroDB</string>
+    <string name="yp_report_send">אישור ודיווח</string>
     <string name="yp_report_sending">שולח…</string>
     <string name="yp_report_sent">הדיווח נשלח ל־IntroDB.</string>
     <string name="yp_report_exists">הקטע כבר מוגדר. לא נשלח דיווח.</string>
@@ -34,4 +34,7 @@
     <string name="yp_report_keep_draft">שמור טיוטה וסגור</string>
     <string name="yp_report_enabled">דיווח ל־IntroDB</string>
     <string name="yp_report_enabled_info">סימון תקציר, פתיחה וסיום שחסרים במאגר מתוך הנגן.</string>
+    <string name="yp_report_calibrate_start">כיול התחלה</string>
+    <string name="yp_report_calibrate_end">כיול סוף</string>
+    <string name="yp_report_calibration_hint">לחיצה: 0.5 שנ׳ · החזקה: הזזה מהירה · אישור: חזרה</string>
 </resources>
