@@ -28,7 +28,7 @@ import javax.inject.Singleton
 
 interface IntroDbSubmissionApi {
     @POST("submit")
-    suspend fun submit(@Header("X-API-Key") key: String, @Body body: Map<String, Any>): Response<ResponseBody>
+    suspend fun submit(@Header("X-API-Key") key: String, @Body body: Map<String, @JvmSuppressWildcards Any>): Response<ResponseBody>
 }
 
 /** Dedicated transport: no media headers, HTTP logging, or cross-host redirects. */
