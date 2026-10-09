@@ -1,32 +1,15 @@
-# Minimal IntroDB report controls
+# Compact IntroDB report HUD
 
-Version `1.1.0-beta.5-yp-introdb.4` (1071).
+Version `1.1.0-beta.5-yp-introdb.5` (1072).
 
-Choose a report type after clicking the player flag. Recording shows only a small circular flag opposite the clock, with a rotating blue arc. The icon uses the same Material Flag as the player controls. Playback and seeking remain available; controls hide normally. Click the player flag again for Finish report / Cancel. Back dismisses that menu without discarding the report; during recording it hides player controls.
+A small translucent popover anchors immediately above the native player flag. Choose Opening / Recap / Credits without a large dialog or timestamp details. Clicking the active flag opens Finish report / Cancel above that same button. The player keeps normal seeking and the corner flag indicator.
 
-Review uses a compact dialog with two frame previews and independent minus/plus controls. Select the adjustment size in two rows: 1 / 5 / 10 seconds, then 1 / 5 / 10 minutes. Start and end remain clamped to valid video bounds. Confirmation pauses playback and restores the finish position on exit.
+Finish pauses the video and shows only two clickable frame thumbnails, Cancel and Confirm and report. Select a thumbnail to seek the paused main video to that boundary and open a subtitle-sync-style calibration ruler. Left/right taps adjust 0.5 seconds; holding a direction accelerates through 2 / 10 / 30 second steps. OK or Back returns from calibration. Repeated input keeps only one frame decode in flight and follows the latest requested timestamp. Frame availability and seek speed depend on the stream/player engine.
 
-Reporting lifecycle checks passed locally; the CI workflow runs eight reporting JUnit tests, vital lint and APK assembly. Physical TV layout and focus still require device testing.
+Confirm and report or Cancel returns playback to the current marked END timestamp, including end corrections. Transmission waits for preview work to settle. Existing types and concurrent submissions remain blocked. Errors preserve retry/key/draft recovery controls only when needed.
 
-# YP Nuvio — IntroDB reporting test build
+Local coordinator checks passed for direct paused boundary selection, repeated input, pending-send blocking and cancellation back to the corrected end. CI runs reporting policy/transport unit tests, vital Android lint and APK assembly. Actual TV placement, remote focus, hold-repeat behavior and engine frame latency still need device testing.
 
-Choose `app-full-universal-debug.apk` when the device architecture is unknown.
-This independent installation appears as YP Nuvio, alongside the official app.
+This is an independent GPL-3.0 debug test build, not an official Nuvio release. Choose app-full-universal-debug.apk. A CI debug signing key may differ between builds; preserve addon URLs and your IntroDB key before removing an earlier fork installation if Android rejects the update. Removing the fork clears its local data.
 
-To install addons, open **Addons → Manage from phone** on the TV. Scan the QR
-using a phone on the same network, paste the addon's manifest URL into that
-local page, and confirm the proposed change on the TV. Keep the management
-screen open until finished. This does not require the official Nuvio account.
-
-Official account/cloud synchronization is not configured in this independent
-build. Addon settings are stored in the fork's own installation.
-
-Configure your own IntroDB API key in Playback settings before submitting.
-Reports support recap, opening/theme song and ending/credits for series;
-movies support ending/credits only. Existing segment types are hidden.
-
-Build, reporting policy tests and Android Lint passed locally. Real Google TV
-thumbnail capture, remote focus and authenticated submission still need device
-testing. See YP-INTRODB-README.md for source/build details and limitations.
-
-Source and modifications are GPL-3.0; this is not an official Nuvio release.
+Official account/cloud sync is not configured. Addons can be managed using Addons → Manage from phone on the same network. Configure your own IntroDB API key in Playback settings.
