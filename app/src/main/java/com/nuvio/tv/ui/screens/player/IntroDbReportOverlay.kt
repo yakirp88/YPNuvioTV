@@ -10,12 +10,21 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.tv.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +86,7 @@ internal fun showIntroDbKeyDialog(context: Context, repository: IntroDbReportRep
 
 @Composable
 internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroDbReportCoordinator, onConfigureKey: () -> Unit) {
+    var adjustmentStep by remember(state.stage) { mutableStateOf(1000L) }
     val firstFocus = remember(state.stage) { FocusRequester() }
     var initialFocusPlaced by remember(state.stage, state.recordingPlayerControls) { mutableStateOf(false) }
     LaunchedEffect(state.stage, state.previewing, state.recordingPlayerControls) {
@@ -89,7 +99,7 @@ internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroD
     when (state.stage) {
         ReportStage.IDLE -> Unit
         ReportStage.CHOOSE -> Dialog(onDismissRequest = coordinator::cancel) {
-            Column(Modifier.width(520.dp).background(Color(0xFF18202E), RoundedCornerShape(20.dp)).padding(24.dp),
+            Column(Modifier.width(420.dp).background(Color(0xFF18202E), RoundedCornerShape(24.dp)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.yp_report_choose), style = MaterialTheme.typography.titleLarge)
                 Text(stringResource(R.string.yp_report_saved_start, reportTime(state.startMs)))
@@ -105,37 +115,68 @@ internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroD
                 Button(onClick = coordinator::cancel) { Text(stringResource(R.string.yp_report_cancel)) }
             }
         }
-        ReportStage.RECORDING -> Box(Modifier.fillMaxSize()) {
-            Column(Modifier.align(Alignment.TopEnd).padding(24.dp)
-                .background(Color(0xEE18202E), RoundedCornerShape(16.dp)).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(state.segment!!.labelResource()) + " · " + reportTime(state.startMs))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = coordinator::finish, modifier = Modifier.focusRequester(firstFocus)) {
-                        Text(stringResource(R.string.yp_report_finish))
+        ReportStage.RECORDING -> {
+            // Status only: this indicator never takes focus from playback controls.
+            val transition = rememberInfiniteTransition(label = "report activity")
+            val rotation by transition.animateFloat(0f, 360f,
+                infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "report ring")
+            val description = stringResource(R.string.yp_report_return)
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.align(Alignment.TopStart).padding(28.dp).size(40.dp)
+                    .background(Color(0xD918202E), CircleShape)
+                    .semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.fillMaxSize().padding(2.dp)) {
+                        drawCircle(Color.White.copy(alpha = 0.18f), style = Stroke(2.dp.toPx()))
+                        drawArc(Color(0xFF8FC9FF), rotation, 100f, false, style = Stroke(2.dp.toPx()))
                     }
-                    Button(onClick = coordinator::cancel) { Text(stringResource(R.string.yp_report_cancel)) }
+                    Icon(Icons.Default.Flag, null, Modifier.size(18.dp), tint = Color.White)
                 }
-                Button(onClick = if (state.recordingPlayerControls) coordinator::focusReportControls else coordinator::showPlayerControls) {
-                    Text(stringResource(if (state.recordingPlayerControls) R.string.yp_report_return else R.string.yp_report_player_controls))
+            }
+            if (!state.recordingPlayerControls) {
+                Dialog(onDismissRequest = coordinator::showPlayerControls) {
+                    Column(Modifier.width(340.dp).background(Color(0xFF18202E), RoundedCornerShape(24.dp)).padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(stringResource(state.segment!!.labelResource()), style = MaterialTheme.typography.titleMedium)
+                        Button(onClick = coordinator::finish, modifier = Modifier.fillMaxWidth().focusRequester(firstFocus)) {
+                            Text(stringResource(R.string.yp_report_finish))
+                        }
+                        Button(onClick = coordinator::cancel, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.yp_report_cancel))
+                        }
+                        ReportMessage(state.message)
+                    }
                 }
-                ReportMessage(state.message)
             }
         }
         ReportStage.REVIEW -> Dialog(onDismissRequest = coordinator::cancel,
             properties = DialogProperties(usePlatformDefaultWidth = false,
                 dismissOnBackPress = !state.sending, dismissOnClickOutside = false)) {
-            Column(Modifier.widthIn(max = 760.dp).fillMaxWidth(0.9f)
+            Column(Modifier.widthIn(max = 680.dp).fillMaxWidth(0.85f)
                 .heightIn(max = (LocalConfiguration.current.screenHeightDp - 32).coerceAtLeast(160).dp)
                 .verticalScroll(rememberScrollState())
-                .background(Color(0xFF18202E), RoundedCornerShape(20.dp)).padding(20.dp),
+                .background(Color(0xFF18202E), RoundedCornerShape(24.dp)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.yp_report_review), style = MaterialTheme.typography.titleLarge)
                 val media = state.media!!
-                Text(media.imdbId + if (media.movie) "" else " · S${media.season} E${media.episode}")
+                Text(stringResource(state.segment!!.labelResource()) + " · " + media.imdbId +
+                    if (media.movie) "" else " · S${media.season} E${media.episode}",
+                    style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.65f))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ReportBoundary(state, true, coordinator, Modifier.weight(1f), firstFocus)
-                    ReportBoundary(state, false, coordinator, Modifier.weight(1f), null)
+                    ReportBoundary(state, true, coordinator, Modifier.weight(1f), firstFocus, adjustmentStep)
+                    ReportBoundary(state, false, coordinator, Modifier.weight(1f), null, adjustmentStep)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(listOf(1000L, 5000L, 10000L), listOf(60000L, 300000L, 600000L)).forEach { steps ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            steps.forEach { step ->
+                                Button(onClick = { adjustmentStep = step }, enabled = !state.sending,
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)) {
+                                    Text((if (adjustmentStep == step) "• " else "") + adjustmentLabel(step))
+                                }
+                            }
+                        }
+                    }
                 }
                 if (state.previewing) Text(stringResource(R.string.yp_report_loading_frame))
                 ReportMessage(state.message)
@@ -162,7 +203,7 @@ internal fun IntroDbReportOverlay(state: IntroDbReportState, coordinator: IntroD
 
 @Composable
 private fun ReportBoundary(state: IntroDbReportState, start: Boolean, coordinator: IntroDbReportCoordinator,
-    modifier: Modifier, focus: FocusRequester?) {
+    modifier: Modifier, focus: FocusRequester?, step: Long) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(if (start) R.string.yp_report_start else R.string.yp_report_end) + ": " +
             reportTime(if (start) state.startMs else state.endMs))
@@ -172,22 +213,13 @@ private fun ReportBoundary(state: IntroDbReportState, start: Boolean, coordinato
             else Text(stringResource(if (state.previewing) R.string.yp_report_loading_frame else R.string.yp_report_frame_unavailable),
                 modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
         }
-        val adjustmentRows = listOf(
-            listOf(-1000L, -500L, 500L, 1000L),
-            listOf(-600000L, -300000L, -60000L),
-            listOf(60000L, 300000L, 600000L)
-        )
-        adjustmentRows.forEachIndexed { rowIndex, deltas ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            deltas.forEachIndexed { index, delta ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(-step, step).forEachIndexed { index, delta ->
                 Button(onClick = { coordinator.adjust(start, delta) }, enabled = !state.sending && !state.previewing,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    modifier = if (rowIndex == 0 && index == 0 && focus != null) Modifier.focusRequester(focus) else Modifier) {
-                    Text(if (kotlin.math.abs(delta) >= 60000L)
-                        (if (delta < 0) "−" else "+") + stringResource(R.string.yp_report_minutes, (kotlin.math.abs(delta) / 60000L).toInt())
-                        else if (delta < 0) "${delta / 1000.0}s" else "+${delta / 1000.0}s")
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.weight(1f).then(if (index == 0 && focus != null) Modifier.focusRequester(focus) else Modifier)) {
+                    Text((if (delta < 0) "− " else "+ ") + adjustmentLabel(step))
                 }
-            }
             }
         }
     }
@@ -210,3 +242,8 @@ internal fun ReportMessage(message: String?) {
 
 internal fun reportTime(ms: Long): String = String.format(Locale.ROOT, "%02d:%02d:%02d.%03d",
     ms / 3600000, ms / 60000 % 60, ms / 1000 % 60, ms % 1000)
+
+@Composable
+private fun adjustmentLabel(step: Long): String = if (step >= 60000L)
+    stringResource(R.string.yp_report_minutes, (step / 60000L).toInt())
+    else "${step / 1000}s"
