@@ -1332,7 +1332,7 @@ fun PlayerScreen(
 
         // Controls overlay
         AnimatedVisibility(
-            visible = (introReport.stage == ReportStage.IDLE || introReport.stage == ReportStage.RECORDING) &&
+            visible = (introReport.stage == ReportStage.IDLE || introReport.stage == ReportStage.CHOOSE || introReport.stage == ReportStage.RECORDING) &&
                 uiState.showControls && uiState.error == null &&
                 !uiState.showLoadingOverlay && !uiState.showPauseOverlay &&
                 !uiState.showStreamInfoOverlay &&
@@ -2471,16 +2471,19 @@ private fun PlayerControlsOverlay(
                         )
                     }
 
-                    if ((introReport.canStart || introReport.stage == ReportStage.RECORDING) && !isLivePlayback) {
-                        ControlButton(
-                            icon = Icons.Default.Flag,
-                            contentDescription = stringResource(if (introReport.stage == ReportStage.RECORDING)
-                                R.string.yp_report_return else R.string.yp_report_button),
-                            onClick = onIntroReport,
-                            upFocusRequester = progressUpTarget,
-                            onDownKey = onHideControls,
-                            onFocused = onResetHideTimer
-                        )
+                    if ((introReport.canStart || introReport.stage == ReportStage.CHOOSE || introReport.stage == ReportStage.RECORDING) && !isLivePlayback) {
+                        Box {
+                            ControlButton(
+                                icon = Icons.Default.Flag,
+                                contentDescription = stringResource(if (introReport.stage == ReportStage.RECORDING)
+                                    R.string.yp_report_return else R.string.yp_report_button),
+                                onClick = onIntroReport,
+                                upFocusRequester = progressUpTarget,
+                                onDownKey = onHideControls,
+                                onFocused = onResetHideTimer
+                            )
+                            IntroDbReportMenu(introReport, viewModel.introDbReport)
+                        }
                     }
 
                     AnimatedVisibility(
