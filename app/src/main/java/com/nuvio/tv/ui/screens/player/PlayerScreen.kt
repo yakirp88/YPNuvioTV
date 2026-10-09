@@ -314,6 +314,11 @@ fun PlayerScreen(
     }
 
     val handleBackPress = handleBackPress@{
+        if (introReport.stage == ReportStage.RECORDING) {
+            if (introReport.recordingPlayerControls) viewModel.introDbReport.focusReportControls()
+            else viewModel.introDbReport.showPlayerControls()
+            return@handleBackPress
+        }
         if (introReport.active) {
             viewModel.introDbReport.cancel()
             return@handleBackPress
@@ -517,8 +522,9 @@ fun PlayerScreen(
         uiState.showSpeedDialog,
         shouldConfirmNextEpisodeOnEnd,
         postPlayRecommendationState.isVisible,
+        introReport.recordingPlayerControls,
     ) {
-        if (introReport.active || shouldConfirmNextEpisodeOnEnd || postPlayRecommendationState.isVisible) return@LaunchedEffect
+        if (!introReport.allowsPlayerControls || shouldConfirmNextEpisodeOnEnd || postPlayRecommendationState.isVisible) return@LaunchedEffect
         if (uiState.error != null) return@LaunchedEffect
         if (uiState.showControls && !uiState.showEpisodesPanel && !uiState.showSourcesPanel &&
             !uiState.showAudioOverlay && !uiState.showSubtitleOverlay &&
@@ -599,7 +605,7 @@ fun PlayerScreen(
             .focusRequester(containerFocusRequester)
             .focusable(enabled = uiState.error == null)
             .onPreviewKeyEvent { keyEvent ->
-                if (introReport.active && keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_BACK &&
+                if (!introReport.allowsPlayerControls && keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_BACK &&
                     keyEvent.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_ESCAPE) return@onPreviewKeyEvent false
                 // Consume the confirm KEY_UP that opened the subtitle timing dialog before
                 // the newly focused "Sync" button can treat it as a second click. Preview
@@ -655,7 +661,7 @@ fun PlayerScreen(
                 true
             }
             .onKeyEvent { keyEvent ->
-                if (introReport.active) return@onKeyEvent false
+                if (!introReport.allowsPlayerControls) return@onKeyEvent false
                 // KEY_UP confirm for Sync Line is consumed in onPreviewKeyEvent so it still
                 // runs after focus moves into the timing dialog.
                 if (uiState.showSubtitleDelayOverlay) {
@@ -1326,7 +1332,8 @@ fun PlayerScreen(
 
         // Controls overlay
         AnimatedVisibility(
-            visible = !introReport.active && uiState.showControls && uiState.error == null &&
+            visible = (introReport.stage == ReportStage.IDLE || introReport.stage == ReportStage.RECORDING) &&
+                uiState.showControls && uiState.error == null &&
                 !uiState.showLoadingOverlay && !uiState.showPauseOverlay &&
                 !uiState.showStreamInfoOverlay &&
                 !uiState.showSubtitleStylePanel &&
@@ -1351,9 +1358,13 @@ fun PlayerScreen(
                 reportCodeVisible = reportCodeVisible,
                 introReport = introReport,
                 onIntroReport = {
+                    if (introReport.stage == ReportStage.RECORDING) {
+                        viewModel.introDbReport.focusReportControls()
+                    } else {
                     val clickedAtMs = viewModel.controller.currentPlaybackPositionMs()
                     if (viewModel.introDbReport.hasApiKey()) viewModel.introDbReport.begin(clickedAtMs)
                     else showIntroDbKeyDialog(context, viewModel.introDbReportRepository)
+                    }
                 },
                 progressBarUpFocusRequester = when {
                     skipButtonActuallyVisible -> skipIntroFocusRequester
@@ -2460,10 +2471,11 @@ private fun PlayerControlsOverlay(
                         )
                     }
 
-                    if (introReport.canStart && !isLivePlayback) {
+                    if ((introReport.canStart || introReport.stage == ReportStage.RECORDING) && !isLivePlayback) {
                         ControlButton(
                             icon = Icons.Default.Flag,
-                            contentDescription = stringResource(R.string.yp_report_button),
+                            contentDescription = stringResource(if (introReport.stage == ReportStage.RECORDING)
+                                R.string.yp_report_return else R.string.yp_report_button),
                             onClick = onIntroReport,
                             upFocusRequester = progressUpTarget,
                             onDownKey = onHideControls,
