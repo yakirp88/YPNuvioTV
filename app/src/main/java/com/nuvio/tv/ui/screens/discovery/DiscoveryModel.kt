@@ -84,8 +84,17 @@ fun discoveryColumns(style: DiscoveryView, size: Int, side: Boolean): Int {
     return sizes[size.coerceIn(0, 4)]
 }
 
-/** Expanding one tile keeps every neighbor visible and at least 70% of its normal width. */
-fun discoveryExpandedWeight(columns: Int): Float = 1f + columns * (1f / .7f - 1f)
+/** The row grows by this tile's extra width; siblings keep their exact original dimensions. */
+fun discoveryExpandedWidth(normalWidth: Float, cardHeight: Float): Float =
+    maxOf(normalWidth * 1.8f, cardHeight * 16f / 9f)
+
+fun discoveryHeroImageUrl(url: String?): String? = url?.let {
+    if(it.startsWith("https://image.tmdb.org/t/p/"))
+        it.replace(Regex("/t/p/[^/]+/"),"/t/p/w1280/") else it
+}
+
+fun discoveryFallbackLogo(imdbId: String?): String? = imdbId?.takeIf {Regex("tt\\d+").matches(it)}
+    ?.let {"https://images.metahub.space/logo/medium/$it/img"}
 
 fun discoveryDecade(filters: DiscoveryFilters, decade: Int): DiscoveryFilters =
     filters.copy(yearFrom = decade, yearTo = decade + 9)

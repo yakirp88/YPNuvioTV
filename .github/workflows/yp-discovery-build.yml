@@ -28,7 +28,7 @@ jobs:
         run: |
           printf '%s\n' "sdk.dir=$ANDROID_HOME" 'INTRODB_API_URL=https://api.introdb.app/' 'DOVI_NATIVE_ENABLED=false' > local.properties
           chmod +x gradlew
-      # Validate modern discovery layouts, viewport-safe sizes, artwork and shared settings.
+      # Validate appended metadata parsing, high-resolution artwork and non-shrinking expansion.
       - name: Build and test
         env:
           CI_USE_DEBUG_SIGNING: true

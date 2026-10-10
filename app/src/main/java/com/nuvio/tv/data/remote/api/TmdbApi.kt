@@ -387,7 +387,7 @@ data class TmdbDetailsResponse(
     @Json(name = "popularity") val popularity: Double? = null,
     @Json(name = "translations") val translations: DiscoveryTranslationsResponse? = null,
     @Json(name = "images") val images: TmdbImagesResponse? = null,
-    @Json(name = "external_ids") val externalIds: TmdbExternalIdsResponse? = null,
+    @Json(name = "external_ids") val externalIds: DiscoveryExternalIdsResponse? = null,
     @Json(name = "release_dates") val releaseDates: TmdbMovieReleaseDatesResponse? = null,
     @Json(name = "credits") val credits: TmdbCreditsResponse? = null,
     @Json(name = "keywords") val keywords: DiscoveryKeywordsResponse? = null
@@ -797,6 +797,8 @@ data class DiscoveryCountry(@Json(name = "iso_3166_1") val code: String, @Json(n
 data class DiscoveryKeywordsResponse(@Json(name = "keywords") val keywords: List<TmdbKeywordSearchResult>? = null,
     @Json(name = "results") val results: List<TmdbKeywordSearchResult>? = null)
 
+@JsonClass(generateAdapter = true)
+data class DiscoveryExternalIdsResponse(@Json(name = "imdb_id") val imdbId: String? = null)
 @JsonClass(generateAdapter = true)
 data class DiscoveryTranslationsResponse(@Json(name = "translations") val translations: List<DiscoveryTranslation> = emptyList())
 @JsonClass(generateAdapter = true)

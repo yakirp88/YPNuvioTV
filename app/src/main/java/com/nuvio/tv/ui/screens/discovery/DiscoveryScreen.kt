@@ -127,7 +127,9 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     LaunchedEffect(focused?.preview?.id,focused?.preview?.imdbId) { focused?.preview?.id?.let {viewModel.focus(it,true)} }
     fun navigate(p: MetaPreview) { returning=true; onNavigateToDetail(p.id,p.apiType,p.sourceAddonBaseUrl.orEmpty()) }
 
-    Column(Modifier.fillMaxSize().background(background).padding(horizontal=18.dp,vertical=10.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+    Box(Modifier.fillMaxSize().background(background)) {
+    DiscoveryHeroArtwork(hero,side,Modifier.align(androidx.compose.ui.AbsoluteAlignment.TopLeft))
+    Column(Modifier.fillMaxSize().padding(horizontal=18.dp,vertical=10.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             ContentSwitch(s.movie) { viewModel.selectType(!s.movie); showText=false; hint="הפילטרים והקטלוג אופסו" }
@@ -197,22 +199,39 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                                 DiscoveryView.BANNERS -> normalWidth/3.2f
                                 DiscoveryView.LANDSCAPE -> normalWidth*9f/16f
                             }).coerceAtMost(maxHeight)
-                            // Keys and row composition stay stable during expansion. Only weights animate.
+                            // Each tile keeps a fixed base width. Expansion grows the row instead of squeezing siblings.
                             LazyColumn(state=grid,modifier=Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(gap)) {
                                 items(s.visible.chunked(columns),key={row->row.first().preview.id}) {row ->
-                                    Row(Modifier.fillMaxWidth().height(cardHeight),horizontalArrangement=Arrangement.spacedBy(gap)) {
+                                    val rowScroll=rememberScrollState()
+                                    val selected=row.indexOfFirst {it.preview.id==gridFocusedId}
+                                    val expandedWidth=discoveryExpandedWidth(normalWidth.value,cardHeight.value).dp
+                                    val density=androidx.compose.ui.platform.LocalDensity.current
+                                    LaunchedEffect(gridFocusedId,expandedId,normalWidth,maxWidth) {
+                                        if(selected>=0) {
+                                            val start=with(density){((normalWidth+gap)*selected).roundToPx()}
+                                            val end=start+with(density){(if(expandedId==gridFocusedId) expandedWidth else normalWidth).roundToPx()}
+                                            val viewport=with(density){maxWidth.roundToPx()}
+                                            val target=when {
+                                                start<rowScroll.value -> start
+                                                end>rowScroll.value+viewport -> end-viewport
+                                                else -> rowScroll.value
+                                            }
+                                            rowScroll.animateScrollTo(target.coerceAtLeast(0))
+                                        }
+                                    }
+                                    Row(Modifier.fillMaxWidth().height(cardHeight).horizontalScroll(rowScroll,enabled=false),horizontalArrangement=Arrangement.spacedBy(gap)) {
                                         row.forEach {entry -> key(entry.preview.id) {
                                             val r=remember {FocusRequester()}
                                             val expanded=expandedId==entry.preview.id
-                                            val weight by androidx.compose.animation.core.animateFloatAsState(
-                                                if(expanded) discoveryExpandedWeight(columns) else 1f,label="discovery card width")
+                                            val cardWidth by animateDpAsState(
+                                                if(expanded) expandedWidth else normalWidth,label="discovery card width")
                                             DisposableEffect(entry.preview.id) {requesters[entry.preview.id]=r;onDispose {requesters.remove(entry.preview.id)}}
-                                            DiscoveryTile(entry.preview,s.view,s.size,Modifier.weight(weight).fillMaxHeight().focusRequester(r),expanded=expanded,
+                                            DiscoveryTile(entry.preview,s.view,s.size,Modifier.width(cardWidth).fillMaxHeight().focusRequester(r),expanded=expanded,
                                                 onFocus={viewModel.focus(entry.preview.id)},
                                                 onFocusState={hasFocus->if(hasFocus) gridFocusedId=entry.preview.id else if(gridFocusedId==entry.preview.id) gridFocusedId=null},
                                                 onClick={navigate(entry.preview)},onHold={actionItem=entry.preview;viewModel.prepareActions(entry.preview);viewModel.posterOptions.show(entry.preview,entry.preview.sourceAddonBaseUrl)})
                                         }}
-                                        repeat(columns-row.size) {Spacer(Modifier.weight(1f))}
+                                        repeat(columns-row.size) {Spacer(Modifier.width(normalWidth))}
                                     }
                                 }
                             }
@@ -224,6 +243,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         s.exportMessage?.let { Text(it,color=accent,fontSize=12.sp) }
         if(s.exporting) Action("בטל ייצוא",viewModel::cancelExport)
         Box(Modifier.height(18.dp)) { if(s.loading || s.metadataPending>0) Text(if(s.loading) "טוען עוד…" else "משלים פרטים…",color=accent,fontSize=12.sp) }
+    }
     }
     if(overlay != null && overlay!="actions" && overlay!="filter-menu" && overlay!="sort-menu" && !(overlay?.startsWith("filter:")==true && overlay!!.substringAfter(':') in inlineFilterKinds)) {
         DiscoveryOverlay(onClose={overlay=if(overlay?.startsWith("filter:")==true) "filter-menu" else null},back=overlay?.startsWith("filter:")==true) {

@@ -1,8 +1,8 @@
-# YP Nuvio Content Discovery 6
+# YP Nuvio Content Discovery 7
 
 Based on 1.1.0-beta.5, with existing IntroDB reporting preserved.
-Modern Discovery with a top hero by default or a fixed left-side hero occupying one third of the screen. The toolbar begins with the movies/series switch at the top right. Four card styles (poster, clear logo, landscape and banner) and five sizes cycle independently. Expansion changes card width without replacing the focused row, retaining neighboring cards.
+Modern Discovery with a top hero by default or a fixed left-side hero occupying one third of the screen. Hero artwork now reaches the physical top and left edges behind the toolbar and uses higher-resolution TMDB backgrounds. Four card styles and five sizes remain available. Expansion grows a horizontally scrollable row, pushing adjacent cards without shrinking their width.
 
-The hero displays artwork, logo, release date, runtime, genres, rating and a scrolling synopsis. IMDb scores use addon metadata; TMDB scores are identified separately. Clear-logo artwork uses original-resolution URLs. Long press opens Nuvio's native poster menu with trailer playback, similar content and cast/director navigation added. Settings reuse native Discover visibility/location controls. Decades precede year fields and fill the corresponding range. Redundant branding, the default all-content heading, old information-position choices and the settings Back row have been removed. The native TMDB API-key dialog and shared credentials remain intact.
+The hero prefers clear-logo artwork over a text title. Appended external IDs no longer require a nested TMDB ID; regression coverage verifies that this response shape preserves images and other metadata. IMDb-based titles can fall back to transparent Metahub logos when TMDB or addon artwork is absent. A real Dune logo was fetched and verified as an 800x310 transparent PNG. Existing native actions, settings and shared TMDB credentials are preserved.
 
 Release compilation and automated checks are run in CI. Remote navigation, anchored rows, image expansion and physical Google TV performance need device validation. Independent prerelease, debug signing. Preserve settings if Android reports an incompatible signing key. Saved catalog export still obeys source limits and requires narrower searches beyond 500 TMDB pages.

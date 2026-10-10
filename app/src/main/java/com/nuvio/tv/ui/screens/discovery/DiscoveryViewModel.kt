@@ -207,7 +207,7 @@ class DiscoveryViewModel @Inject constructor(
                     (result as? NetworkResult.Success)?.data
                 } ?: return@launch
                 if(token==generation && mutable.value.focusedId==id) mutable.update {it.copy(heroPreview=p.copy(
-                    logo=p.logo ?: meta.logo,background=p.background ?: meta.background,
+                    logo=p.logo ?: meta.logo ?: discoveryFallbackLogo(imdb),background=discoveryHeroImageUrl(p.background ?: meta.background),
                     imdbRating=meta.imdbRating,ageRating=p.ageRating ?: meta.ageRating,
                     runtime=p.runtime ?: meta.runtime,trailerYtIds=meta.trailerYtIds))}
             } catch(e:CancellationException){throw e} catch(_:Exception){}
@@ -366,7 +366,7 @@ class DiscoveryViewModel @Inject constructor(
                 skip = pendingSkip
                 retryReset = false
                 val serverMatched = discoveryUsesServerFilters(s.catalog?.catalogId,s.catalog?.addonId,s.includeMissing)
-                val initial = raw.map { p -> DiscoveryItem(p, popularity=popularities[p.id], serverMatched=serverMatched) }
+                val initial = raw.map { p -> DiscoveryItem(p.copy(logo=p.logo ?: discoveryFallbackLogo(p.imdbId ?: p.id)), popularity=popularities[p.id], serverMatched=serverMatched) }
                 mutable.update { it.copy(items=(if(reset) initial else it.items+initial).distinctBy { item -> item.preview.id },
                     loading=false,metadataPending=(if(reset) 0 else it.metadataPending)+raw.size,hasMore=more,page=next,
                     localScope=s.catalog != null || s.includeMissing || s.filters.watched != null || s.sort == DiscoverySort.TITLE || s.sort == DiscoverySort.RUNTIME) }
@@ -519,15 +519,19 @@ class DiscoveryViewModel @Inject constructor(
             val keywords = if(s.filters.keyword != null) d.keywords?.let { it.keywords ?: it.results }?.map { it.id }?.toSet() else null
             val imdb = p.imdbId ?: d.externalIds?.imdbId
             val item = DiscoveryItem(p.copy(imdbId=imdb,name=names.firstOrNull(String::isNotBlank) ?: original,
-                poster=image(d.posterPath) ?: p.poster,background=image(d.backdropPath) ?: p.background,
-                logo=imageData?.logos?.let { logos -> (s.titleLanguages.map { if(it=="original") d.originalLanguage else it } + listOf(null)).firstNotNullOfOrNull { lang -> logos.firstOrNull { it.iso6391==lang }?.filePath } ?: logos.firstOrNull { !it.filePath.isNullOrBlank() }?.filePath }?.let(::discoveryLogoUrl) ?: p.logo,
+                poster=image(d.posterPath) ?: p.poster,background=discoveryHeroImageUrl(image(d.backdropPath) ?: p.background),
+                logo=imageData?.logos?.let { logos -> (s.titleLanguages.map { if(it=="original") d.originalLanguage else it } + listOf(null)).firstNotNullOfOrNull { lang -> logos.firstOrNull { it.iso6391==lang }?.filePath } ?: logos.firstOrNull { !it.filePath.isNullOrBlank() }?.filePath }?.let(::discoveryLogoUrl) ?: p.logo ?: discoveryFallbackLogo(imdb),
                 imdbRating=d.voteAverage?.toFloat() ?: p.imdbRating,description=d.overview ?: p.description,genres=d.genres.orEmpty().map { it.name },runtime=(d.runtime ?: d.episodeRunTime?.firstOrNull())?.toString(),
                 released=d.releaseDate ?: d.firstAirDate ?: p.released,releaseInfo=(d.releaseDate ?: d.firstAirDate)?.take(4) ?: p.releaseInfo,language=d.originalLanguage,status=d.status,ageRating=age,country=(d.originCountry.orEmpty()+d.productionCountries.orEmpty().mapNotNull { it.iso31661 }).distinct().takeIf { it.isNotEmpty() }?.joinToString(),voteCount=d.voteCount ?: p.voteCount),
                 (names + searchNames + original + p.name).filter(String::isNotBlank).distinct(),
                 d.copy(images=null,translations=null,externalIds=null,releaseDates=null,credits=null,keywords=null),actors,keywords,d.popularity)
             synchronized(cache) { cache[key] = item }
             return item
-        } catch(e: CancellationException) { throw e } catch(e: Exception) { if(strict) throw e; return DiscoveryItem(p) }
+        } catch(e: CancellationException) { throw e } catch(e: Exception) {
+            android.util.Log.w("Discovery", "Metadata failed for ${p.id}: ${e.javaClass.simpleName}")
+            if(strict) throw e
+            return DiscoveryItem(p.copy(logo=p.logo ?: discoveryFallbackLogo(p.imdbId ?: p.id)))
+        }
     }
     private fun render() { mutable.update(::filteredState) }
     private fun filteredState(s:DiscoveryState):DiscoveryState {

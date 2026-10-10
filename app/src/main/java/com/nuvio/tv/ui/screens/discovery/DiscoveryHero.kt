@@ -27,30 +27,30 @@ import kotlinx.coroutines.delay
 /** The same artwork, typography and metadata treatment as native Modern Home. */
 @Composable
 internal fun DiscoveryHero(p: MetaPreview?, tmdbScore: Double?, hasImdb: Boolean, side: Boolean, modifier: Modifier = Modifier) {
-    val colors=NuvioTheme.colors
     if(p==null) {Spacer(modifier);return}
-    val direction=LocalLayoutDirection.current
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Box(modifier.clipToBounds()) {
-            if(side) {
-                Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.fillMaxWidth().aspectRatio(16f/9)) {
-                        AsyncImage(p.backdropUrl,p.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
-                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent,colors.Background))))
-                    }
-                    CompositionLocalProvider(LocalLayoutDirection provides direction) {
-                        HeroInformation(p,tmdbScore,hasImdb,true,Modifier.fillMaxWidth())
-                    }
-                }
-            } else {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(.6f)) {
-                    AsyncImage(p.backdropUrl,p.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
-                    Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Transparent,colors.Background))))
-                }
-                CompositionLocalProvider(LocalLayoutDirection provides direction) {
+    if(side) Column(modifier,verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Spacer(Modifier.fillMaxWidth().height(150.dp))
+        HeroInformation(p,tmdbScore,hasImdb,true,Modifier.fillMaxWidth())
+    } else Box(modifier) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Box(Modifier.fillMaxSize()) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     HeroInformation(p,tmdbScore,hasImdb,false,Modifier.align(Alignment.CenterEnd).fillMaxWidth(.54f).padding(start=10.dp))
                 }
             }
+        }
+    }
+}
+
+/** Artwork sits behind the toolbar and content, flush with the physical screen edges. */
+@Composable
+internal fun DiscoveryHeroArtwork(p:MetaPreview?,side:Boolean,modifier:Modifier=Modifier) {
+    val colors=NuvioTheme.colors
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Box(modifier.fillMaxWidth(if(side) 1f/3f else .64f).height(if(side) 230.dp else 266.dp).clipToBounds()) {
+            AsyncImage(discoveryHeroImageUrl(p?.backdropUrl),p?.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+            if(!side) Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Transparent,colors.Background))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,colors.Background))))
         }
     }
 }
