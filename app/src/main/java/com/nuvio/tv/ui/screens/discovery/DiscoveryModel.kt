@@ -108,7 +108,7 @@ fun discoveryLogoUrl(path: String?): String? = path?.takeIf { it.isNotBlank() }?
 const val DISCOVERY_MIN_VOTES = 100
 fun discoveryExpansionEnabled(style: DiscoveryView, enabled: Boolean) = enabled && style != DiscoveryView.CLEAR_LOGO
 fun discoveryDecades(year: Int = java.time.Year.now().value): List<Int> =
-    (1950..(year / 10 * 10) step 10).reversed()
+    (1950..(year / 10 * 10) step 10).reversed().toList()
 fun discoveryParentDirection(rtl: Boolean): Int = if(rtl)
     android.view.KeyEvent.KEYCODE_DPAD_RIGHT else android.view.KeyEvent.KEYCODE_DPAD_LEFT
 
