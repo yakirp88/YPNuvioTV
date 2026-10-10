@@ -3,6 +3,8 @@ package com.nuvio.tv.ui.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.data.local.TmdbSettingsDataStore
+import com.nuvio.tv.data.local.DiscoveryPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.nuvio.tv.data.local.ContinueWatchingEnrichmentCache
 import com.nuvio.tv.data.trailer.TrailerService
 import com.nuvio.tv.domain.model.TmdbSettings
@@ -13,6 +15,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,11 +27,26 @@ class TmdbSettingsViewModel @Inject constructor(
     private val dataStore: TmdbSettingsDataStore,
     private val trailerService: TrailerService,
     private val metaRepository: MetaRepository,
-    private val cwEnrichmentCache: ContinueWatchingEnrichmentCache
+    private val cwEnrichmentCache: ContinueWatchingEnrichmentCache,
+    private val discoveryPreferences: DiscoveryPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TmdbSettingsUiState())
     val uiState: StateFlow<TmdbSettingsUiState> = _uiState.asStateFlow()
+    val hasApiKey = discoveryPreferences.preferences
+        .map { !it[stringPreferencesKey("tmdb_key")].isNullOrBlank() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun saveApiKey(value: String, onSaved: (Boolean) -> Unit) {
+        if (value.isBlank()) { onSaved(false); return }
+        viewModelScope.launch {
+            try {
+                discoveryPreferences.save("tmdb_key", value.trim())
+                onSaved(true)
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { onSaved(false) }
+        }
+    }
 
     init {
         viewModelScope.launch {

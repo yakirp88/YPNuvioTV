@@ -1,0 +1,8 @@
+<resources>
+    <string name="yp_tmdb_api_key_title">TMDB API key</string>
+    <string name="yp_tmdb_api_key_info">Enter an API key (v3). Used by the TMDB integration and Content Discovery.</string>
+    <string name="yp_tmdb_api_key_saved">Saved</string>
+    <string name="yp_tmdb_api_key_not_set">Not set</string>
+    <string name="yp_tmdb_api_key_required">Enter a TMDB API key.</string>
+    <string name="yp_tmdb_api_key_failed">Could not save the key. Try again.</string>
+</resources>

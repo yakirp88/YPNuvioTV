@@ -94,6 +94,10 @@ fun TmdbSettingsContent(
                     )
                 }
 
+                item(key = "tmdb_api_key") {
+                    TmdbApiKeySettingsRow(viewModel)
+                }
+
                 item(key = "tmdb_modern_home_enabled") {
                     SettingsToggleRow(
                         title = stringResource(R.string.tmdb_modern_home_title),

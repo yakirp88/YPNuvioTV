@@ -1,0 +1,8 @@
+<resources>
+    <string name="yp_tmdb_api_key_title">מפתח API של TMDB</string>
+    <string name="yp_tmdb_api_key_info">הזן מפתח API מסוג v3. משמש את אינטגרציית TMDB ואת תוכן וגילוי.</string>
+    <string name="yp_tmdb_api_key_saved">נשמר</string>
+    <string name="yp_tmdb_api_key_not_set">לא הוגדר</string>
+    <string name="yp_tmdb_api_key_required">יש להזין מפתח API של TMDB.</string>
+    <string name="yp_tmdb_api_key_failed">לא ניתן לשמור את המפתח. נסה שוב.</string>
+</resources>
