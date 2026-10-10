@@ -30,6 +30,17 @@ data class DiscoveryFilters(
     }
 }
 data class DiscoveryChoice(val id: String, val name: String)
+enum class DiscoveryInfoPosition { TOP, MIDDLE, BOTTOM, EXPAND }
+
+fun discoveryInfoPosition(value: String?) = DiscoveryInfoPosition.entries.firstOrNull { it.name == value } ?: DiscoveryInfoPosition.TOP
+fun discoveryExpansionDelay(value: String?) = value?.toIntOrNull()?.coerceIn(0,10) ?: 3
+fun DiscoveryFilters.cycleGenre(id: Int): DiscoveryFilters = when(id) {
+    in genres -> copy(genres=genres-id,excludedGenres=excludedGenres+id)
+    in excludedGenres -> copy(excludedGenres=excludedGenres-id)
+    else -> copy(genres=genres+id,excludedGenres=excludedGenres-id)
+}
+fun discoveryUsesServerFilters(catalogId: String?, addonId: String?, includeMissing: Boolean): Boolean =
+    !includeMissing && (catalogId == null || addonId == "nuvio.tmdb" && catalogId != "trending")
 enum class DiscoveryView { POSTERS, LIST, CARDS, CLEAR_LOGO, LANDSCAPE, BANNERS;
     fun next() = entries[(ordinal + 1) % entries.size]
 }

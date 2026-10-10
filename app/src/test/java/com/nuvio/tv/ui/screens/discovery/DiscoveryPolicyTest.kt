@@ -4,6 +4,31 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscoveryPolicyTest {
+    @Test fun informationDefaultsToTopAndDelayIsBounded() {
+        assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition(null))
+        assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("invalid"))
+        assertEquals(DiscoveryInfoPosition.MIDDLE,discoveryInfoPosition("MIDDLE"))
+        assertEquals(3,discoveryExpansionDelay(null))
+        assertEquals(0,discoveryExpansionDelay("-1"))
+        assertEquals(10,discoveryExpansionDelay("15"))
+        assertEquals(0,discoveryExpansionDelay("0"))
+    }
+    @Test fun genreCycleIsExclusiveAndReturnsToNeutral() {
+        val included=DiscoveryFilters().cycleGenre(28)
+        assertEquals(setOf(28),included.genres);assertTrue(included.excludedGenres.isEmpty())
+        val excluded=included.cycleGenre(28)
+        assertTrue(excluded.genres.isEmpty());assertEquals(setOf(28),excluded.excludedGenres)
+        assertEquals(DiscoveryFilters(),excluded.cycleGenre(28))
+    }
+    @Test fun builtinPopularAndNewCatalogsSendFiltersButTrendingStaysLocal() {
+        assertTrue(discoveryUsesServerFilters(null,null,false))
+        assertTrue(discoveryUsesServerFilters("popular","nuvio.tmdb",false))
+        assertTrue(discoveryUsesServerFilters("new","nuvio.tmdb",false))
+        assertFalse(discoveryUsesServerFilters("trending","nuvio.tmdb",false))
+        assertFalse(discoveryUsesServerFilters("popular","addon",false))
+        assertFalse(discoveryUsesServerFilters(null,null,true))
+    }
+
     @Test fun prefetchStartsOnPenultimateRowAndNeverForToolbarFocus() {
         assertFalse(discoveryShouldPrefetch(-1,20,6))
         assertFalse(discoveryShouldPrefetch(7,20,6))

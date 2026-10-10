@@ -1,6 +1,8 @@
-# YP Nuvio Content Discovery 3
+# YP Nuvio Content Discovery 4
 
-Based on 1.1.0-beta.5 with the existing IntroDB reporting changes preserved.
-Optimized release build (R8), immediate discovery results, background metadata with bundled TMDB requests, penultimate-row prefetch, themed compact filter/sort menus, centered single-line catalog picker, shared API key under Integrations > TMDB, and nested Content Discovery display settings. Vote count and runtime filters removed.
+Based on 1.1.0-beta.5, with existing IntroDB reporting preserved.
+Compact borderless filter and sort menus, adjacent fixed-choice submenus, remembered filter focus, three-state genres, ascending/descending control at top, English language labels, Clear Logo artwork fallback and refresh, and server-side filtering for built-in Popular/New catalogs.
 
-Export collects a fixed snapshot, stores it in native Collections and pins it to the top. Cancel or a source failure leaves no partial catalog. TMDB searches with more than 500 pages must be narrowed before export. Some addon catalogs expose only a finite set of results. Physical Google TV performance and remote navigation remain to be verified. This independent prerelease uses debug signing; preserve settings if Android reports an incompatible signing key.
+Content Discovery > Display settings now includes fixed information position (Top by default, Middle, Bottom, or expanding the focused image), with the original app slider for a 0–10 second expansion delay. The original TMDB integration screen is restored; previously saved credentials remain intact.
+
+Release compilation and automated checks are run in CI. Remote navigation, anchored rows, image expansion and physical Google TV performance need device validation. Independent prerelease, debug signing. Preserve settings if Android reports an incompatible signing key. Saved catalog export still obeys source limits and requires narrower searches beyond 500 TMDB pages.

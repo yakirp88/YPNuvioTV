@@ -77,7 +77,6 @@ fun TmdbSettingsContent(
                 contentPadding = PaddingValues(bottom = NuvioTheme.spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item(key = "shared_tmdb_api_key") { TmdbApiKeySetting() }
                 item(key = "tmdb_enabled") {
                     SettingsToggleRow(
                         title = stringResource(R.string.tmdb_enable_title),

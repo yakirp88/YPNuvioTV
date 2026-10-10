@@ -28,6 +28,7 @@ jobs:
         run: |
           printf '%s\n' "sdk.dir=$ANDROID_HOME" 'INTRODB_API_URL=https://api.introdb.app/' 'DOVI_NATIVE_ENABLED=false' > local.properties
           chmod +x gradlew
+      # Validate configurable information placement and compact filter behavior.
       - name: Build and test
         env:
           CI_USE_DEBUG_SIGNING: true

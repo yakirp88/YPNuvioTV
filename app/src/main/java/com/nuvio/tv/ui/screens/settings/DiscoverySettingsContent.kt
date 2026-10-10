@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.material3.Text
@@ -30,22 +29,28 @@ import javax.inject.Inject
 class DiscoverySettingsViewModel @Inject constructor(val preferences: DiscoveryPreferences,private val api:TmdbApi,private val tmdb:TmdbService):ViewModel() {
     val missing=preferences.includeMissing.stateIn(viewModelScope,SharingStarted.Eagerly,false)
     val languages=preferences.languages.stateIn(viewModelScope,SharingStarted.Eagerly,listOf("he","en","original"))
-    val choices=MutableStateFlow(listOf(DiscoveryChoice("original","שפת המקור"),DiscoveryChoice("he","עברית"),DiscoveryChoice("en","English")))
-    val apiKey=preferences.preferences.map{it[androidx.datastore.preferences.core.stringPreferencesKey("tmdb_key")].orEmpty()}.stateIn(viewModelScope,SharingStarted.Eagerly,"")
+    val choices=MutableStateFlow(listOf(DiscoveryChoice("original","שפת המקור"),DiscoveryChoice("he","Hebrew"),DiscoveryChoice("en","English")))
+    val position=preferences.infoPosition.stateIn(viewModelScope,SharingStarted.Eagerly,com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.TOP)
+    val expansionDelay=preferences.expansionDelay.stateIn(viewModelScope,SharingStarted.Eagerly,3)
+    fun position(value:com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition){viewModelScope.launch{preferences.setInfoPosition(value)}}
+    fun expansionDelay(value:Int){viewModelScope.launch{preferences.setExpansionDelay(value)}}
     init {viewModelScope.launch {
         preferences.preferences.map { it[androidx.datastore.preferences.core.stringPreferencesKey("tmdb_key")].orEmpty() }.distinctUntilChanged().collectLatest { key ->
             try {
-                choices.value=(choices.value+api.discoveryLanguages(key.ifBlank{tmdb.apiKey()}).body().orEmpty().map{DiscoveryChoice(it.code,it.name.ifBlank{it.englishName})}).distinctBy{it.id}
+                choices.value=(choices.value+api.discoveryLanguages(key.ifBlank{tmdb.apiKey()}).body().orEmpty().map{DiscoveryChoice(it.code,it.englishName.ifBlank{it.name})}).distinctBy{it.id}
             } catch(e:CancellationException){throw e}catch(_:Exception){}
         }
     }}
     fun missing(){viewModelScope.launch{preferences.setIncludeMissing(!missing.value)}}
     fun language(index:Int,value:String){viewModelScope.launch{preferences.setLanguage(index,value)}}
-    fun key(value:String){viewModelScope.launch{preferences.save("tmdb_key",value.trim())}}
 }
 
 @Composable
 internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = null, vm:DiscoverySettingsViewModel=hiltViewModel()) {
+    val position by vm.position.collectAsState()
+    val expansionDelay by vm.expansionDelay.collectAsState()
+    var selectingPosition by remember { mutableStateOf(false) }
+    val positions=listOf("למעלה","באמצע","למטה","הרחבת תמונת הכותר")
     val missing by vm.missing.collectAsState()
     val languages by vm.languages.collectAsState()
     val choices by vm.choices.collectAsState()
@@ -54,6 +59,12 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
     Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         SettingsToggleRow("כלול כותרים עם מידע חסר","חל כאשר חסר נתון שנדרש לפילטר פעיל",missing,vm::missing,
             modifier=initialFocusRequester?.let{Modifier.focusRequester(it)} ?: Modifier)
+        SettingsActionRow(title="מיקום מידע הכותר",subtitle="מיקום קבוע למידע של הכותר שנבחר",value=positions[position.ordinal],onClick={selectingPosition=!selectingPosition})
+        if(selectingPosition) com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.entries.forEach { option ->
+            Action(positions[option.ordinal],{vm.position(option);selectingPosition=false},position==option)
+        }
+        if(position==com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.EXPAND) SliderSettingsItem(
+            title="השהיה לפני הרחבת תמונת הכותר",subtitle="0 שניות — הרחבה מיידית",value=expansionDelay,valueText="${expansionDelay}s",minValue=0,maxValue=10,step=1,onValueChange=vm::expansionDelay)
         languages.forEachIndexed{index,value ->
             SettingsActionRow(title=listOf("שפה ראשית","שפה משנית","שפה שלישית")[index],subtitle="שפת שמות התוכן · עדיפות ${index+1}",
                 value=choices.find{it.id==value}?.name ?: value,onClick={selecting=index;query=""})
@@ -64,17 +75,5 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
                 items(choices.filter{it.name.contains(query,true)||it.id.contains(query,true)}) {c -> Action(c.name,{vm.language(selecting!!,c.id);selecting=null})}
             }
         }
-    }
-}
-
-@Composable
-internal fun TmdbApiKeySetting(vm:DiscoverySettingsViewModel=hiltViewModel()) {
-    val savedKey by vm.apiKey.collectAsState()
-    var key by remember(savedKey){mutableStateOf(savedKey)}
-    Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(key,{key=it},Modifier.fillMaxWidth(),singleLine=true,
-            visualTransformation=PasswordVisualTransformation(),label={Text("TMDB API key · אופציונלי")})
-        Action("שמור מפתח",{vm.key(key)})
-        Text("מפתח משותף לאינטגרציית TMDB ולתוכן וגילוי",color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary)
     }
 }
