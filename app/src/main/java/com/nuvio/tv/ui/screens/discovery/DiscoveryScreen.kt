@@ -40,9 +40,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-private val accent = Color(0xff58cccc)
-private val background = Color(0xff101418)
-private val panel = Color(0xff1b232a)
+private val accent: Color @Composable get() = com.nuvio.tv.ui.theme.NuvioTheme.colors.Secondary
+private val background: Color @Composable get() = com.nuvio.tv.ui.theme.NuvioTheme.colors.Background
+private val panel: Color @Composable get() = com.nuvio.tv.ui.theme.NuvioTheme.colors.Surface
 private fun DiscoveryView.label() = when(this) {
     DiscoveryView.POSTERS -> "רשת פוסטרים"; DiscoveryView.LIST -> "רשימה"; DiscoveryView.CARDS -> "כרטיסים גדולים"
     DiscoveryView.CLEAR_LOGO -> "Clear Logo"; DiscoveryView.LANDSCAPE -> "פוסטרים רחבים"; DiscoveryView.BANNERS -> "באנרים"
@@ -93,11 +93,18 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     }
     LaunchedEffect(showText) { if(showText) textFocus.requestFocus() }
     LaunchedEffect(hint) { if(hint != null) { delay(1800); hint = null } }
+    val columns = when(s.view) {
+        DiscoveryView.LIST -> 1
+        DiscoveryView.POSTERS -> listOf(8,6,4)[s.size]
+        DiscoveryView.CLEAR_LOGO -> listOf(5,4,3)[s.size]
+        DiscoveryView.BANNERS -> listOf(3,2,1)[s.size]
+        else -> listOf(4,3,2)[s.size]
+    }
     // Deliberately trigger only when the user has reached the end, never drain a catalog
     // automatically merely because a local text filter has zero matches.
-    LaunchedEffect(grid, s.visible.size, s.hasMore, s.loading,s.error) {
+    LaunchedEffect(grid, s.visible.size, s.hasMore, s.loading,s.error,s.focusedId,columns) {
         snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index }.distinctUntilChanged().collect { last ->
-            if(last != null && s.visible.isNotEmpty() && last >= s.visible.size - 5 && !s.loading && s.hasMore && s.error==null) viewModel.load()
+            if(last != null && s.visible.isNotEmpty() && discoveryShouldPrefetch(s.visible.indexOfFirst { it.preview.id == s.focusedId },s.visible.size,columns) && !s.loading && s.hasMore && s.error==null) viewModel.load()
         }
     }
     BackHandler(s.sourceLabel != null && !showText && overlay == null) { viewModel.restoreSource() }
@@ -109,11 +116,29 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("nuvio", color=Color.White,fontSize=20.sp)
             RoundControl(Icons.Default.Search,"סינון טקסט",s.query.isNotBlank(),Modifier.focusRequester(firstToolbar)) { showText=!showText }
-            RoundControl(Icons.Default.FilterList,"פילטרים",s.filters.active) { overlay="filters" }
-            RoundControl(Icons.Default.Sort,"מיון") { overlay="sort" }
+            Box {
+                RoundControl(Icons.Default.FilterList,"פילטרים",s.filters.active) { overlay="filter-menu" }
+                if(overlay=="filter-menu") ToolbarMenu({overlay=null}) {
+                    filterKinds(s.movie).forEach { (kind,label) -> Action(label,{overlay="filter:$kind";viewModel.lookup(kind,"")}) }
+                    Action("נקה פילטרים",{viewModel.filter(DiscoveryFilters());overlay=null})
+                }
+            }
+            Box {
+                RoundControl(Icons.Default.Sort,"מיון") { overlay="sort-menu" }
+                if(overlay=="sort-menu") ToolbarMenu({overlay=null}) {
+                    DiscoverySort.entries.forEach { sort -> Action(sort.label(),{overlay="order:${sort.name}"},s.sort==sort) }
+                }
+                if(overlay?.startsWith("order:")==true) ToolbarMenu({overlay=null}) {
+                    val sort=DiscoverySort.valueOf(overlay!!.substringAfter(':'))
+                    Text(sort.label(),color=Color.White)
+                    Action("סדר עולה ↑",{viewModel.sort(sort,false);overlay=null})
+                    Action("סדר יורד ↓",{viewModel.sort(sort,true);overlay=null})
+                }
+            }
             RoundControl(Icons.Default.LibraryBooks,"קטלוגים",s.catalog != null) { overlay="catalogs" }
             RoundControl(Icons.Default.ViewCarousel,"תצוגה: ${s.view.label()}") { viewModel.cycleView(); hint="${s.view.next().label()} · ${(s.view.next().ordinal+1)}/6" }
             RoundControl(Icons.Default.AspectRatio,"גודל פריטים") { viewModel.cycleSize(); hint="גודל: ${listOf("קטן","בינוני","גדול")[(s.size+1)%3]}" }
+            RoundControl(Icons.Default.Save,"ייצוא לקטלוג") { overlay="export" }
             RoundControl(Icons.Default.RestartAlt,"איפוס") { viewModel.reset(); hint="הפילטרים והקטלוג אופסו" }
             Spacer(Modifier.weight(1f))
             ContentSwitch(s.movie) { viewModel.selectType(!s.movie); showText=false; hint="הפילטרים והקטלוג אופסו" }
@@ -137,14 +162,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
             val index=s.visible.indexOfFirst { it.preview.id == s.focusedId }
             if(index >= 0) grid.scrollToItem(index)
         }
-        val columns = when(s.view) {
-            DiscoveryView.LIST -> 1
-            DiscoveryView.POSTERS -> listOf(8,6,4)[s.size]
-            DiscoveryView.CLEAR_LOGO -> listOf(5,4,3)[s.size]
-            DiscoveryView.BANNERS -> listOf(3,2,1)[s.size]
-            else -> listOf(4,3,2)[s.size]
-        }
-        if(s.visible.isEmpty() && !s.loading) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+        if(s.visible.isEmpty() && !s.loading && s.metadataPending==0) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
             Column(horizontalAlignment=Alignment.CenterHorizontally) {
                 Text(if(s.query.isNotBlank()) "אין התאמות בתוצאות שנטענו" else "אין תוצאות עבור הבחירות האלה",color=Color.LightGray)
                 if(s.hasMore) Action("טען עוד תוצאות לבדיקה", { viewModel.load() })
@@ -158,7 +176,9 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                     onClick={ navigate(item.preview) }, onHold={ actionItem=item.preview;overlay="actions" })
             }
         }
-        Box(Modifier.height(18.dp)) { if(s.loading) Text("טוען עוד…",color=accent,fontSize=12.sp) }
+        s.exportMessage?.let { Text(it,color=accent,fontSize=12.sp) }
+        if(s.exporting) Action("בטל ייצוא",viewModel::cancelExport)
+        Box(Modifier.height(18.dp)) { if(s.loading || s.metadataPending>0) Text(if(s.loading) "טוען עוד…" else "משלים פרטים…",color=accent,fontSize=12.sp) }
         // Fixed reserved space prevents grid jumps as synopsis lengths change.
         if(s.view != DiscoveryView.CARDS) Box(Modifier.fillMaxWidth().height(66.dp)) {
             focused?.preview?.let { p -> Column {
@@ -167,7 +187,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
             } }
         }
     }
-    if(overlay != null) {
+    if(overlay != null && overlay!="filter-menu" && overlay!="sort-menu" && overlay?.startsWith("order:")!=true) {
         DiscoveryOverlay(onClose={overlay=null}) {
             when(overlay) {
                 "actions" -> actionItem?.let { p ->
@@ -183,9 +203,16 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                         items(s.choices) { c -> Action(c.name,{overlay=null;viewModel.chooseTitleActor(c)}) }
                     }
                 }
+                "export" -> {
+                    var catalogName by remember { mutableStateOf("") }
+                    Text("ייצוא הסינון לקטלוג",color=Color.White,fontSize=20.sp)
+                    Text("איסוף כל התוצאות שהמקור מאפשר לקבל. הקטלוג יישמר באוספים ויוצמד למעלה.",color=Color.LightGray,fontSize=12.sp)
+                    Field("שם הקטלוג",catalogName,{catalogName=it})
+                    Action("אסוף ושמור",{if(catalogName.isNotBlank()) {viewModel.exportCatalog(catalogName);overlay=null}})
+                }
                 "catalogs" -> CatalogPicker(s) { viewModel.selectCatalog(it); overlay=null }
                 "sort" -> SortPicker(s,viewModel::sort)
-                "filters" -> FilterDrawer(s,viewModel::filter,viewModel::lookup)
+                else -> if(overlay?.startsWith("filter:")==true) FilterEditor(overlay!!.substringAfter(':'),s,viewModel::filter,viewModel::lookup)
             }
         }
     }
@@ -204,7 +231,7 @@ private fun RoundControl(icon: ImageVector,label: String,active: Boolean=false,m
             Icon(icon,label,Modifier.size(17.dp),tint=if(active || focused) accent else Color.White)
         }
         if(focused) androidx.compose.ui.window.Popup(alignment=Alignment.BottomCenter,
-            offset=androidx.compose.ui.unit.IntOffset(0,28)) {
+            offset=androidx.compose.ui.unit.IntOffset(0,46)) {
             Text(label,Modifier.background(panel,RoundedCornerShape(6.dp)).padding(5.dp),color=Color.White,fontSize=11.sp)
         }
     }
@@ -266,13 +293,13 @@ internal fun Action(label:String,onClick:()->Unit,active:Boolean=false) {
     var focus by remember { mutableStateOf(false) }
     Text(label,Modifier.clip(RoundedCornerShape(8.dp)).background(if(active) accent.copy(alpha=.15f) else panel)
         .border(if(focus) 2.dp else 0.dp,accent,RoundedCornerShape(8.dp)).onFocusChanged {focus=it.isFocused}
-        .clickable(onClick=onClick).padding(horizontal=12.dp,vertical=9.dp),color=if(active) accent else Color.White,fontSize=13.sp)
+        .clickable(onClick=onClick).padding(horizontal=12.dp,vertical=9.dp),color=if(active) accent else Color.White,fontSize=13.sp,maxLines=1)
 }
 @Composable
 private fun DiscoveryOverlay(onClose:()->Unit,content:@Composable ()->Unit) {
     Dialog(onDismissRequest=onClose,properties=DialogProperties(usePlatformDefaultWidth=false)) {
-        Box(Modifier.fillMaxSize(),contentAlignment=Alignment.CenterEnd) {
-            Column(Modifier.width(330.dp).fillMaxHeight().background(panel).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+            Column(Modifier.width(500.dp).heightIn(max=420.dp).clip(RoundedCornerShape(18.dp)).background(panel).padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                 Action("סגור ×",onClose)
                 content()
             }
@@ -285,7 +312,7 @@ private fun CatalogPicker(s:DiscoveryState,onSelect:(com.nuvio.tv.ui.screens.sea
     LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         item { Action("כל התוכן",{onSelect(null)},s.catalog==null) }
         items(s.catalogs.filter { it.type == if(s.movie) "movie" else "series" },key={it.key}) { c ->
-            Action("${c.catalogName}\n${c.addonName}",{onSelect(c)},s.catalog?.key==c.key)
+            Action("${c.catalogName} · ${c.addonName}",{onSelect(c)},s.catalog?.key==c.key)
         }
     }
 }
@@ -303,8 +330,6 @@ private fun ActiveFilters(f:DiscoveryFilters,onChange:(DiscoveryFilters)->Unit) 
         if(f.genres.isNotEmpty()) add("ז׳אנרים (${f.genres.size})" to {onChange(f.copy(genres=emptySet()))})
         if(f.excludedGenres.isNotEmpty()) add("ז׳אנרים מוחרגים" to {onChange(f.copy(excludedGenres=emptySet()))})
         if(f.scoreFrom!=null || f.scoreTo!=null) add("ציון" to {onChange(f.copy(scoreFrom=null,scoreTo=null))})
-        if(f.votes!=null) add("הצבעות ${f.votes}+" to {onChange(f.copy(votes=null))})
-        if(f.runtimeFrom!=null || f.runtimeTo!=null) add("משך" to {onChange(f.copy(runtimeFrom=null,runtimeTo=null))})
         f.actors.forEach { a -> add(a.name to {onChange(f.copy(actors=f.actors-a))}) }
         f.company?.let {add(it.name to {onChange(f.copy(company=null))})}
         f.country?.let {add(it to {onChange(f.copy(country=null))})}
@@ -319,64 +344,67 @@ private fun ActiveFilters(f:DiscoveryFilters,onChange:(DiscoveryFilters)->Unit) 
         item {Action("נקה הכול",{onChange(DiscoveryFilters())})}
     }
 }
+private fun filterKinds(movie:Boolean) = buildList {
+    add("year" to "שנה ועשור");add("genre" to "ז׳אנר");add("score" to "ציון")
+    if(movie) add("actor" to "שחקנים")
+    add("company" to "אולפן");add("country" to "מדינה");add("language" to "שפת מקור")
+    add("topic" to "נושא וסגנון");add(if(movie) "age" to "דירוג גיל" else "status" to "סטטוס סדרה")
+    add("watched" to "מצב צפייה")
+}
 @Composable
-private fun FilterDrawer(s:DiscoveryState,onChange:(DiscoveryFilters)->Unit,onLookup:(String,String)->Unit) {
+private fun ToolbarMenu(onClose:()->Unit,content:@Composable ColumnScope.()->Unit) {
+    androidx.compose.ui.window.Popup(alignment=Alignment.TopStart,offset=androidx.compose.ui.unit.IntOffset(0,60),
+        onDismissRequest=onClose,properties=androidx.compose.ui.window.PopupProperties(focusable=true)) {
+        Column(Modifier.width(220.dp).heightIn(max=360.dp).clip(RoundedCornerShape(12.dp)).background(panel)
+            .verticalScroll(rememberScrollState()).padding(10.dp),verticalArrangement=Arrangement.spacedBy(5.dp),content=content)
+    }
+}
+@Composable
+private fun FilterEditor(kind:String,s:DiscoveryState,onChange:(DiscoveryFilters)->Unit,onLookup:(String,String)->Unit) {
     val f=s.filters
-    var lookupKind by remember {mutableStateOf<String?>(null)}
-    var lookupQuery by remember {mutableStateOf("")}
-    var genreMode by remember {mutableStateOf(false)}
-    Text("סינון",color=Color.White,fontSize=20.sp)
-    LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-        item {Action("נקה פילטרים",{onChange(DiscoveryFilters())})}
-        item {NumericRange("שנה",f.yearFrom?.toString().orEmpty(),f.yearTo?.toString().orEmpty(),
-            {onChange(f.copy(yearFrom=it.toIntOrNull()))},{onChange(f.copy(yearTo=it.toIntOrNull()))})}
-        item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-            (1980..2020 step 10).forEach { y -> Action("${y}s",{onChange(f.copy(yearFrom=y,yearTo=y+9))},f.yearFrom==y && f.yearTo==y+9) }
-        } }
-        item {Action(if(genreMode) "הסתר ז׳אנרים" else "ז׳אנרים · כולם חייבים להתקיים",{genreMode=!genreMode})}
-        if(genreMode) items(s.genres) { g -> Row(horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-            val id=g.id.toInt()
-            Action(g.name,{onChange(f.copy(genres=if(id in f.genres) f.genres-id else f.genres+id,excludedGenres=f.excludedGenres-id))},id in f.genres)
-            Action("ללא",{onChange(f.copy(excludedGenres=if(id in f.excludedGenres) f.excludedGenres-id else f.excludedGenres+id,genres=f.genres-id))},id in f.excludedGenres)
-        } }
-        item {NumericRange("ציון",f.scoreFrom?.toString().orEmpty(),f.scoreTo?.toString().orEmpty(),
-            {onChange(f.copy(scoreFrom=it.toDoubleOrNull()?.coerceIn(0.0,10.0)))},{onChange(f.copy(scoreTo=it.toDoubleOrNull()?.coerceIn(0.0,10.0)))})}
-        item {Field("מינימום הצבעות",f.votes?.toString().orEmpty(),{onChange(f.copy(votes=it.toIntOrNull()?.coerceAtLeast(0)))},true)}
-        item {NumericRange(if(s.movie) "משך סרט בדקות" else "משך פרק בדקות",f.runtimeFrom?.toString().orEmpty(),f.runtimeTo?.toString().orEmpty(),
-            {onChange(f.copy(runtimeFrom=it.toIntOrNull()?.coerceAtLeast(0)))},{onChange(f.copy(runtimeTo=it.toIntOrNull()?.coerceAtLeast(0)))})}
-        if(s.movie) item {Action("שחקנים (${f.actors.size})",{lookupKind="actor";lookupQuery="";onLookup("actor","")})}
-        if(s.movie && f.actors.isNotEmpty()) item {
-            f.actors.forEach { a -> Action("${a.name} ×",{onChange(f.copy(actors=f.actors-a))},true) }
-            Action(if(f.allActors) "כולם" else "לפחות אחד",{onChange(f.copy(allActors=!f.allActors))})
+    var query by remember(kind) {mutableStateOf("")}
+    Text(filterKinds(s.movie).find { it.first==kind }?.second.orEmpty(),color=Color.White,fontSize=20.sp)
+    LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        when(kind) {
+            "year" -> {
+                item {NumericRange("שנה",f.yearFrom?.toString().orEmpty(),f.yearTo?.toString().orEmpty(),
+                    {onChange(f.copy(yearFrom=it.toIntOrNull()))},{onChange(f.copy(yearTo=it.toIntOrNull()))})}
+                item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+                    (1950..2020 step 10).forEach { y -> Action("${y}s",{onChange(f.copy(yearFrom=y,yearTo=y+9))},f.yearFrom==y && f.yearTo==y+9) }
+                }}
+                item {Action("כל השנים",{onChange(f.copy(yearFrom=null,yearTo=null))})}
+            }
+            "score" -> {
+                item {NumericRange("ציון",f.scoreFrom?.toString().orEmpty(),f.scoreTo?.toString().orEmpty(),
+                    {onChange(f.copy(scoreFrom=it.toDoubleOrNull()?.coerceIn(0.0,10.0)))},{onChange(f.copy(scoreTo=it.toDoubleOrNull()?.coerceIn(0.0,10.0)))})}
+                item {Action("כל הציונים",{onChange(f.copy(scoreFrom=null,scoreTo=null))})}
+            }
+            "genre" -> {
+                item {Text("כל הז׳אנרים שנבחרו חייבים להתקיים",color=Color.LightGray)}
+                items(s.genres) {g -> val id=g.id.toInt();Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                    Action(g.name,{onChange(f.copy(genres=if(id in f.genres) f.genres-id else f.genres+id,excludedGenres=f.excludedGenres-id))},id in f.genres)
+                    Action("ללא",{onChange(f.copy(excludedGenres=if(id in f.excludedGenres) f.excludedGenres-id else f.excludedGenres+id,genres=f.genres-id))},id in f.excludedGenres)
+                }}
+            }
+            "actor","company","country","language" -> {
+                item {Field("חיפוש",query,{query=it;onLookup(kind,it)})}
+                if(kind=="actor") {
+                    item {Action(if(f.allActors) "כולם" else "לפחות אחד",{onChange(f.copy(allActors=!f.allActors))})}
+                    items(f.actors) {c -> Action("${c.name} ×",{onChange(f.copy(actors=f.actors-c))},true)}
+                }
+                item {Action("נקה בחירה",{onChange(when(kind){"actor"->f.copy(actors=emptyList());"company"->f.copy(company=null);"country"->f.copy(country=null);else->f.copy(language=null)})})}
+                val choices=when(kind) {"country"->s.countries.filter {it.name.contains(query,true)||it.id.contains(query,true)};"language"->s.languages.filter{it.name.contains(query,true)||it.id.contains(query,true)};else->s.choices}
+                items(choices,key={it.id}) {c -> Action(c.name,{onChange(when(kind){"actor"->f.copy(actors=(f.actors+c).distinctBy{it.id});"company"->f.copy(company=c);"country"->f.copy(country=c.id);else->f.copy(language=c.id)})},
+                    when(kind){"actor"->c in f.actors;"company"->c==f.company;"country"->c.id==f.country;else->c.id==f.language})}
+            }
+            "topic" -> items(s.topics) {c -> Action(c.name,{onChange(f.copy(keyword=if(f.keyword==c) null else c))},f.keyword==c)}
+            "age" -> {
+                item {Text("דירוג MPAA · ארה״ב",color=Color.LightGray)}
+                items(listOf("G","PG","PG-13","R","NC-17")) {r -> Action(r,{onChange(f.copy(certification=if(f.certification==r) null else r))},f.certification==r)}
+            }
+            "status" -> items(listOf("0" to "פעילה","3" to "הסתיימה","4" to "בוטלה")) {(id,label) -> Action(label,{onChange(f.copy(status=if(f.status==id) null else id))},f.status==id)}
+            "watched" -> items(listOf("watched" to "נצפה","unwatched" to "לא נצפה","saved" to "ברשימת הצפייה")) {(id,label) -> Action(label,{onChange(f.copy(watched=if(f.watched==id) null else id))},f.watched==id)}
         }
-        item {Action("אולפן: ${f.company?.name ?: "הכול"}",{lookupKind="company";lookupQuery="";onLookup("company","")})}
-        item {Action("מדינה: ${s.countries.find{it.id==f.country}?.name ?: "הכול"}",{lookupKind="country";lookupQuery="";onLookup("country","")})}
-        item {Action("שפה: ${s.languages.find{it.id==f.language}?.name ?: "הכול"}",{lookupKind="language";lookupQuery="";onLookup("language","")})}
-        if(lookupKind!=null) {
-            item {Field("חיפוש",lookupQuery,{lookupQuery=it;onLookup(lookupKind!!,it)})}
-            item {Action("נקה בחירה",{
-                onChange(when(lookupKind){"actor"->f.copy(actors=emptyList());"company"->f.copy(company=null);"country"->f.copy(country=null);else->f.copy(language=null)})
-                lookupKind=null
-            })}
-            items(s.choices) { c -> Action(c.name,{
-                onChange(when(lookupKind){"actor"->f.copy(actors=(f.actors+c).distinctBy{it.id});"company"->f.copy(company=c);"country"->f.copy(country=c.id);else->f.copy(language=c.id)})
-                lookupQuery="";onLookup(lookupKind!!,"");lookupKind=null
-            }) }
-        }
-        item {Text("נושאים",color=Color.LightGray)}
-        items(s.topics) { topic -> Action(topic.name,{onChange(f.copy(keyword=if(f.keyword==topic) null else topic))},f.keyword==topic) }
-        if(s.movie) {
-            item {Text("דירוג גיל · ארה״ב (MPAA)",color=Color.LightGray)}
-            item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                listOf("G","PG","PG-13","R","NC-17").forEach { rating -> Action(rating,{onChange(f.copy(certification=if(f.certification==rating) null else rating))},f.certification==rating) }
-            }}
-        } else item {Row(horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-            listOf("0" to "פעילה","3" to "הסתיימה","4" to "בוטלה").forEach { (id,label) -> Action(label,{onChange(f.copy(status=if(f.status==id) null else id))},f.status==id) }
-        }}
-        item {Text("מצב צפייה",color=Color.LightGray)}
-        item {Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
-            listOf("watched" to "נצפה","unwatched" to "לא נצפה","saved" to "ברשימת הצפייה").forEach { (id,label) -> Action(label,{onChange(f.copy(watched=if(f.watched==id) null else id))},f.watched==id) }
-        }}
     }
 }
 @Composable
@@ -392,7 +420,9 @@ private fun Field(label:String,value:String,onChange:(String)->Unit,numeric:Bool
     OutlinedTextField(if(editing) draft else value,{ draft=it; onChange(it) },Modifier.fillMaxWidth().onFocusChanged {
         if(it.hasFocus && !editing) draft=value
         editing=it.hasFocus
-    },singleLine=true,
+    },singleLine=true,colors=androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+        focusedBorderColor=accent,cursorColor=accent,focusedLabelColor=accent,
+        unfocusedBorderColor=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary),
         textStyle=androidx.compose.ui.text.TextStyle(color=Color.White,fontSize=14.sp),
         keyboardOptions=KeyboardOptions(keyboardType=if(numeric) KeyboardType.Decimal else KeyboardType.Text),label={Text(label,color=Color.LightGray,fontSize=12.sp)})
 }

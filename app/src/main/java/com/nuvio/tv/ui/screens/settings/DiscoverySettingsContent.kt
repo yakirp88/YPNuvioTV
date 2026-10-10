@@ -49,10 +49,8 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
     val missing by vm.missing.collectAsState()
     val languages by vm.languages.collectAsState()
     val choices by vm.choices.collectAsState()
-    val savedKey by vm.apiKey.collectAsState()
     var selecting by remember{mutableStateOf<Int?>(null)}
     var query by remember{mutableStateOf("")}
-    var key by remember(savedKey){mutableStateOf(savedKey)}
     Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         SettingsToggleRow("כלול כותרים עם מידע חסר","חל כאשר חסר נתון שנדרש לפילטר פעיל",missing,vm::missing,
             modifier=initialFocusRequester?.let{Modifier.focusRequester(it)} ?: Modifier)
@@ -66,8 +64,17 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
                 items(choices.filter{it.name.contains(query,true)||it.id.contains(query,true)}) {c -> Action(c.name,{vm.language(selecting!!,c.id);selecting=null})}
             }
         }
-        // A build may already provide the official service key. An override stays in the profile.
-        OutlinedTextField(key,{key=it},Modifier.fillMaxWidth(),singleLine=true,visualTransformation=PasswordVisualTransformation(),label={Text("TMDB API key · אופציונלי")})
+    }
+}
+
+@Composable
+internal fun TmdbApiKeySetting(vm:DiscoverySettingsViewModel=hiltViewModel()) {
+    val savedKey by vm.apiKey.collectAsState()
+    var key by remember(savedKey){mutableStateOf(savedKey)}
+    Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(key,{key=it},Modifier.fillMaxWidth(),singleLine=true,
+            visualTransformation=PasswordVisualTransformation(),label={Text("TMDB API key · אופציונלי")})
         Action("שמור מפתח",{vm.key(key)})
+        Text("מפתח משותף לאינטגרציית TMDB ולתוכן וגילוי",color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary)
     }
 }

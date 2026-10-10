@@ -10,7 +10,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -26,6 +26,8 @@ jobs:
           printf '%s\n' "sdk.dir=$ANDROID_HOME" 'INTRODB_API_URL=https://api.introdb.app/' 'DOVI_NATIVE_ENABLED=false' > local.properties
           chmod +x gradlew
       - name: Build and test
+        env:
+          CI_USE_DEBUG_SIGNING: true
         run: >
           ./gradlew -Pkotlin.compiler.execution.strategy=in-process
           -Pkotlin.incremental=false -Pdebuggable=false
@@ -36,9 +38,10 @@ jobs:
           --tests "com.nuvio.tv.core.tmdb.TmdbMetadataServiceTest"
           --tests "com.nuvio.tv.data.introdb.*"
           --tests "com.nuvio.tv.data.local.DiscoveryPreferencesTest"
-          :app:assembleFullDebug --no-daemon --max-workers=1
+          --tests "com.nuvio.tv.data.local.CollectionsDataStoreSourceMigrationTest"
+          :app:assembleFullRelease --no-daemon --max-workers=1
       - name: Name universal APK
-        run: cp app/build/outputs/apk/full/debug/app-full-universal-debug.apk Nuvio-content-discovery.apk
+        run: cp app/build/outputs/apk/full/release/app-full-universal-release.apk Nuvio-content-discovery.apk
       - uses: actions/upload-artifact@v4
         with:
           name: YP-Nuvio-Content-Discovery

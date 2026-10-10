@@ -72,8 +72,8 @@ class CollectionsDataStore @Inject constructor(
         }
     }
 
-    suspend fun addCollection(collection: Collection) {
-        store().edit { prefs ->
+    suspend fun addCollection(collection: Collection, profileId: Int = profileManager.activeProfileId.value) {
+        store(profileId).edit { prefs ->
             val current = parseCollections(prefs[collectionsKey]).toMutableList()
             current.add(collection)
             prefs[collectionsKey] = gson.toJson(current.map { it.toSerializable() })
@@ -239,6 +239,7 @@ class CollectionsDataStore @Inject constructor(
         val mediaType: String? = null,
         val sortBy: String? = null,
         val sortHow: String? = null,
+        val snapshot: List<com.nuvio.tv.domain.model.SavedDiscoveryItem>? = null,
         val filters: SerializableTmdbFilters? = null
     )
 
@@ -322,6 +323,7 @@ class CollectionsDataStore @Inject constructor(
                 tmdbId = tmdbId,
                 mediaType = mediaType.name,
                 sortBy = sortBy,
+                snapshot = snapshot,
                 filters = filters.toSerializable()
             )
             is TraktCollectionSource -> SerializableSource(
@@ -413,6 +415,7 @@ class CollectionsDataStore @Inject constructor(
                         runCatching { TmdbCollectionMediaType.valueOf(raw.uppercase()) }.getOrNull()
                     } ?: TmdbCollectionMediaType.MOVIE,
                     sortBy = normalizedSortBy,
+                    snapshot = snapshot,
                     filters = filters?.toDomain() ?: TmdbCollectionFilters()
                 )
             }

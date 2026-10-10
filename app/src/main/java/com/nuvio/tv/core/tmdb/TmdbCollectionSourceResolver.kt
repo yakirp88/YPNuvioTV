@@ -50,6 +50,10 @@ class TmdbCollectionSourceResolver @Inject constructor(
         emit(NetworkResult.Loading)
         val result = runCatching {
             withContext(Dispatchers.IO) {
+                source.snapshot?.let { saved ->
+                    val start = (page.coerceAtLeast(1)-1)*40
+                    return@withContext row(source,page,start+40 < saved.size,saved.drop(start).take(40).map { it.preview() })
+                }
                 val language = tmdbSettingsDataStore.settings.first().language
                 when (source.sourceType) {
                     TmdbCollectionSourceType.LIST -> resolveList(source, language, page)

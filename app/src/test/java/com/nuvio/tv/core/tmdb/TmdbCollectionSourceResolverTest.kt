@@ -31,6 +31,21 @@ import retrofit2.Response
 import retrofit2.http.Query
 
 class TmdbCollectionSourceResolverTest {
+    @Test fun `saved discovery catalog paginates locally without requesting TMDB`() = runTest {
+        val api = mockk<TmdbApi>()
+        val resolver = TmdbCollectionSourceResolver(context,api,settings)
+        val source = TmdbCollectionSource(TmdbCollectionSourceType.DISCOVER,"Saved",
+            snapshot=(1..45).map { com.nuvio.tv.domain.model.SavedDiscoveryItem(
+                "tmdb:$it","movie","Title $it",null,null,null,null,null,"2026",7f,emptyList(),null,null,null,null) })
+        val first = resolver.resolve(source,1).first { it !is NetworkResult.Loading } as NetworkResult.Success
+        assertEquals(40,first.data.items.size)
+        assertTrue(first.data.hasMore)
+        val second = resolver.resolve(source,2).first { it !is NetworkResult.Loading } as NetworkResult.Success
+        assertEquals(5,second.data.items.size)
+        assertEquals("tmdb:41",second.data.items.first().id)
+        assertFalse(second.data.hasMore)
+        io.mockk.verify { api wasNot io.mockk.Called }
+    }
     private val context = mockk<Context>(relaxed = true)
     private val settings = mockk<TmdbSettingsDataStore> {
         every { this@mockk.settings } returns MutableStateFlow(TmdbSettings(language = "en"))

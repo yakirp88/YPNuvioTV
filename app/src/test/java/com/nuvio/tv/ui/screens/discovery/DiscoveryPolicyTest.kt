@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscoveryPolicyTest {
+    @Test fun prefetchStartsOnPenultimateRowAndNeverForToolbarFocus() {
+        assertFalse(discoveryShouldPrefetch(-1,20,6))
+        assertFalse(discoveryShouldPrefetch(7,20,6))
+        assertTrue(discoveryShouldPrefetch(8,20,6))
+        assertTrue(discoveryShouldPrefetch(18,20,1))
+        assertFalse(discoveryShouldPrefetch(17,20,1))
+        assertFalse(discoveryShouldPrefetch(0,0,6))
+    }
     @Test fun multipleGenresRequireAllButActorsCanMatchAny() {
         val filters=DiscoveryFilters(genres=setOf(878,28),actors=listOf(DiscoveryChoice("31","A"),DiscoveryChoice("32","B")),allActors=false)
         val query=filters.query(movie=true)

@@ -1,7 +1,6 @@
-# YP Nuvio Content Discovery test build
-Performance investigation build: disable runtime debugging and share profile settings reads across metadata requests. Startup crashes reported on the physical TV are not yet reproduced or confirmed fixed; a device crash log is still needed if they persist.
-Based on Nuvio TV 1.1.0-beta.5, with the existing compact IntroDB reporting UI and boundary calibration preserved.
+# YP Nuvio Content Discovery 3
 
-Six views, view/size cycling, movie and TV filters, single-field sorting, catalog selection, title filtering for loaded items, and profile settings. Configure a TMDB API key in Settings > Content Discovery. Sorting by title/runtime and filtering catalog items applies to loaded results.
+Based on 1.1.0-beta.5 with the existing IntroDB reporting changes preserved.
+Optimized release build (R8), immediate discovery results, background metadata with bundled TMDB requests, penultimate-row prefetch, themed compact filter/sort menus, centered single-line catalog picker, shared API key under Integrations > TMDB, and nested Content Discovery display settings. Vote count and runtime filters removed.
 
-This independent GPL-3.0 debug test build is not an official Nuvio release. Physical TV, remote navigation, and live TMDB testing remain pending. A GitHub-built debug APK can use a different signing key from a locally built APK; if Android rejects an update, preserve your configuration before uninstalling the previous fork.
+Export collects a fixed snapshot, stores it in native Collections and pins it to the top. Cancel or a source failure leaves no partial catalog. TMDB searches with more than 500 pages must be narrowed before export. Some addon catalogs expose only a finite set of results. Physical Google TV performance and remote navigation remain to be verified. This independent prerelease uses debug signing; preserve settings if Android reports an incompatible signing key.

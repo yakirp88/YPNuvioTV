@@ -68,6 +68,12 @@ interface TmdbApi {
         @Query("language") language: String = "en-US"
     ): Response<TmdbVideosResponse>
 
+    @GET("{type}/{id}")
+    suspend fun discoveryDetails(@Path("type") type: String, @Path("id") id: Int,
+        @Query("api_key") apiKey: String, @Query("language") language: String?,
+        @Query("append_to_response") append: String,
+        @Query("include_image_language") imageLanguages: String): Response<TmdbDetailsResponse>
+
     @GET("movie/{movie_id}")
     suspend fun getMovieDetails(
         @Path("movie_id") movieId: Int,
@@ -378,7 +384,13 @@ data class TmdbDetailsResponse(
     @Json(name = "status") val status: String? = null,
     @Json(name = "belongs_to_collection") val belongsToCollection: TmdbCollectionSummary? = null,
     @Json(name = "vote_count") val voteCount: Int? = null,
-    @Json(name = "popularity") val popularity: Double? = null
+    @Json(name = "popularity") val popularity: Double? = null,
+    @Json(name = "translations") val translations: DiscoveryTranslationsResponse? = null,
+    @Json(name = "images") val images: TmdbImagesResponse? = null,
+    @Json(name = "external_ids") val externalIds: TmdbExternalIdsResponse? = null,
+    @Json(name = "release_dates") val releaseDates: TmdbMovieReleaseDatesResponse? = null,
+    @Json(name = "credits") val credits: TmdbCreditsResponse? = null,
+    @Json(name = "keywords") val keywords: DiscoveryKeywordsResponse? = null
 )
 
 @JsonClass(generateAdapter = true)

@@ -28,7 +28,8 @@ data class TmdbCollectionSource(
     val tmdbId: Int? = null,
     val mediaType: TmdbCollectionMediaType = TmdbCollectionMediaType.MOVIE,
     val sortBy: String = TmdbCollectionSort.POPULAR_DESC.value,
-    val filters: TmdbCollectionFilters = TmdbCollectionFilters()
+    val filters: TmdbCollectionFilters = TmdbCollectionFilters(),
+    val snapshot: List<SavedDiscoveryItem>? = null
 ) : CollectionSource
 
 @Immutable

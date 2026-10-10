@@ -20,7 +20,7 @@ import javax.inject.Inject
 
 data class DiscoveryItem(val preview: MetaPreview, val names: List<String> = listOf(preview.name),
     val details: TmdbDetailsResponse? = null, val actors: Set<Int>? = null,
-    val keywordIds: Set<Int>? = null, val popularity: Double? = null)
+    val keywordIds: Set<Int>? = null, val popularity: Double? = null, val serverMatched: Boolean = false)
 data class DiscoveryState(
     val movie: Boolean = true, val filters: DiscoveryFilters = DiscoveryFilters(),
     val query: String = "", val view: DiscoveryView = DiscoveryView.POSTERS, val size: Int = 1,
@@ -30,6 +30,7 @@ data class DiscoveryState(
     val topics: List<DiscoveryChoice> = emptyList(),
     val genres: List<DiscoveryChoice> = emptyList(), val countries: List<DiscoveryChoice> = emptyList(),
     val languages: List<DiscoveryChoice> = emptyList(), val choices: List<DiscoveryChoice> = emptyList(),
+    val metadataPending: Int = 0, val exporting: Boolean = false, val exportMessage: String? = null,
     val loading: Boolean = false, val hasMore: Boolean = true, val error: String? = null,
     val includeMissing: Boolean = false, val titleLanguages: List<String> = listOf("he", "en", "original"),
     val sourceLabel: String? = null,
@@ -52,6 +53,9 @@ class DiscoveryViewModel @Inject constructor(
     val state = mutable.asStateFlow()
     private var request: Job? = null
     private var suggestions: Job? = null
+    private var exportJob: Job? = null
+    private val enrichmentJobs = mutableListOf<Job>()
+    private var configuration: Job? = null
     private var generation = 0
     private val pool = Semaphore(4)
     private val cache = object : LinkedHashMap<String, DiscoveryItem>(128, .75f, true) {
@@ -77,8 +81,8 @@ class DiscoveryViewModel @Inject constructor(
         viewModelScope.launch {
             preferences.profilePreferences.collect { (profile,p) ->
                 if(activeProfile != profile) {
-                    request?.cancel();generation++;previous=null;relatedSource=false
-                    activeProfile=profile;prefsReady=false;mutable.value=DiscoveryState(catalogs=mutable.value.catalogs);cache.clear()
+                    request?.cancel();exportJob?.cancel();generation++;previous=null;relatedSource=false
+                    activeProfile=profile;prefsReady=false;mutable.value=DiscoveryState(catalogs=mutable.value.catalogs);synchronized(cache) { cache.clear() }
                 }
                 val s = mutable.value
                 val langs = listOf("primary", "secondary", "tertiary").mapIndexed { i, k -> p[stringPreferencesKey(k)] ?: listOf("he", "en", "original")[i] }
@@ -113,8 +117,12 @@ class DiscoveryViewModel @Inject constructor(
         }
     }
     private fun refreshConfiguration() {
-        viewModelScope.launch {
+        configuration?.cancel()
+        if(apiKey().isBlank()) return
+        configuration = viewModelScope.launch {
             try {
+                val genres = (if(mutable.value.movie) api.getMovieGenres(apiKey(),"he") else api.getTvGenres(apiKey(),"he")).body()?.genres.orEmpty().map { DiscoveryChoice(it.id.toString(),it.name) }
+                mutable.update { it.copy(genres=genres) }
                 val countries = api.discoveryCountries(apiKey()).body().orEmpty().map { DiscoveryChoice(it.code, it.name?.ifBlank { null } ?: it.englishName) }
                 val languages = api.discoveryLanguages(apiKey()).body().orEmpty().map { DiscoveryChoice(it.code, it.name.ifBlank { it.englishName }) }
                 val topics=coroutineScope { discoveryTopics.map { seed -> async {
@@ -147,7 +155,7 @@ class DiscoveryViewModel @Inject constructor(
     fun selectType(movie: Boolean) {
         if (movie == mutable.value.movie) return
         mutable.update { it.copy(movie = movie, catalog = null, filters = DiscoveryFilters(), query = "", focusedId = null, sourceLabel=null, items = emptyList(), visible = emptyList()) }
-        relatedSource=false;restoreDisplay(); load(true)
+        relatedSource=false;restoreDisplay(); refreshConfiguration(); load(true)
     }
     fun selectCatalog(catalog: DiscoverCatalog?) {
         relatedSource=false
@@ -257,21 +265,56 @@ class DiscoveryViewModel @Inject constructor(
     fun load(reset: Boolean = false, debounce: Boolean = false) {
         val current = mutable.value
         if(!reset && (current.loading || !current.hasMore)) return
-        request?.cancel(); val token = ++generation
+        request?.cancel()
+        if(reset) { generation++; enrichmentJobs.forEach { it.cancel() }; enrichmentJobs.clear() }
+        val token = generation
         mutable.update { it.copy(loading = true, error = null, items = it.items, visible = it.visible) }
         request = viewModelScope.launch {
-            if(debounce) delay(300)
+            if(debounce) delay(180)
             val s = mutable.value
             try {
-                if (s.catalog == null && apiKey().isBlank()) error("יש להגדיר מפתח TMDB בהגדרות → תוכן וגילוי")
+                if (s.catalog == null && apiKey().isBlank()) error("יש להגדיר מפתח TMDB בהגדרות → אינטגרציות → TMDB")
+                val result=fetchPage(s,if(reset) 1 else s.page+1,skip,reset)
+                val raw=result.raw; val popularities=result.popularities; val pendingSkip=result.skip
+                val more=result.more; val next=result.page
+                if(token != generation) return@launch
+                skip = pendingSkip
+                retryReset = false
+                val serverMatched = s.catalog == null && !s.includeMissing
+                val initial = raw.map { p -> DiscoveryItem(p, popularity=popularities[p.id], serverMatched=serverMatched) }
+                mutable.update { it.copy(items=(if(reset) initial else it.items+initial).distinctBy { item -> item.preview.id },
+                    loading=false,metadataPending=(if(reset) 0 else it.metadataPending)+raw.size,hasMore=more,page=next,
+                    localScope=s.catalog != null || s.includeMissing || s.filters.watched != null || s.sort == DiscoverySort.TITLE || s.sort == DiscoverySort.RUNTIME) }
+                render()
+                // Artwork and translations must not block page navigation or prefetch.
+                enrichmentJobs.removeAll { it.isCompleted }
+                enrichmentJobs += viewModelScope.launch {
+                    val enriched = coroutineScope { raw.map { p -> async { pool.withPermit {
+                        enrich(p,s).copy(popularity=popularities[p.id],serverMatched=serverMatched)
+                    } } }.awaitAll() }.associateBy { it.preview.id }
+                    if(token == generation) {
+                        mutable.update { it.copy(metadataPending=(it.metadataPending-raw.size).coerceAtLeast(0),items=it.items.map { item -> enriched[item.preview.id] ?: item }) }; render()
+                    }
+                }
+            } catch(e: CancellationException) { throw e } catch(e: Exception) {
+                if(token == generation) {
+                    retryReset = reset
+                    mutable.update { it.copy(loading=false,error=e.message ?: "הטעינה נכשלה") }
+                }
+            }
+        }
+    }
+    private data class DiscoveryPage(val raw:List<MetaPreview>,val popularities:Map<String,Double?>,val more:Boolean,val skip:Int,val page:Int,val limited:Boolean=false)
+    private suspend fun fetchPage(s:DiscoveryState,page:Int,offsetBase:Int,reset:Boolean):DiscoveryPage {
                 val raw: List<MetaPreview>
                 var popularities = emptyMap<String, Double?>()
-                var pendingSkip = skip
-                val next = if(reset) 1 else s.page + 1
+                var limited = false
+                var pendingSkip = offsetBase
+                val next = page
                 val more: Boolean
                 if(s.catalog != null && s.catalog.addonId != "nuvio.tmdb") {
                     val c = s.catalog
-                    val offset = if(reset) 0 else skip
+                    val offset = if(reset) 0 else offsetBase
                     val source=collectionSources[c.key]
                     val stream=when(source) {
                         is TmdbCollectionSource -> tmdbCollections.resolve(source,next)
@@ -305,6 +348,7 @@ class DiscoveryViewModel @Inject constructor(
                         else api.discoverContent(if(s.movie) "movie" else "tv",apiKey(),serverQuery)
                     if(!response.isSuccessful) error("TMDB: ${response.code()}")
                     val data = response.body() ?: error("תגובה ריקה")
+                    limited = (data.totalPages ?: 1)>500
                     more = next < (data.totalPages ?: 1).coerceAtMost(500)
                     raw = data.results.orEmpty().map { r -> MetaPreview("tmdb:${r.id}", if(s.movie) ContentType.MOVIE else ContentType.SERIES,
                         name = r.title ?: r.name ?: r.originalTitle ?: r.originalName ?: "", poster = image(r.posterPath),posterShape=PosterShape.POSTER,
@@ -312,68 +356,94 @@ class DiscoveryViewModel @Inject constructor(
                         imdbRating=r.voteAverage?.toFloat(),genres=emptyList(),voteCount=r.voteCount,released=r.releaseDate ?: r.firstAirDate) }
                     popularities = data.results.orEmpty().associate { "tmdb:${it.id}" to it.popularity }
                 }
-                // Show the first page promptly while translations and clear logos are enriched.
-                // Filtered pages wait for metadata so incomplete items never appear as matches.
-                if(reset && !s.filters.active && token == generation) {
-                    mutable.update { it.copy(items=raw.map { p -> DiscoveryItem(p,popularity=popularities[p.id]) }) }
-                    render()
+        return DiscoveryPage(raw,popularities,more,pendingSkip,next,limited)
+    }
+    fun cancelExport() { exportJob?.cancel(); mutable.update { it.copy(exporting=false,exportMessage="הייצוא בוטל; לא נשמר קטלוג חלקי") } }
+    fun exportCatalog(name:String) {
+        if(name.isBlank() || mutable.value.exporting) return
+        val snapshot=mutable.value;val profile=activeProfile ?: return
+        val related=relatedSource
+        mutable.update { it.copy(exporting=true,exportMessage="אוסף תוצאות…") }
+        exportJob=viewModelScope.launch {
+            try {
+                val saved=withContext(Dispatchers.IO) {
+                    val output=linkedMapOf<String,MetaPreview>()
+                    var page=1;var offset=0
+                    do {
+                        ensureActive()
+                        val data=if(related) DiscoveryPage(snapshot.items.map { it.preview },emptyMap(),false,0,1)
+                            else fetchPage(snapshot,page,offset,page==1)
+                        if(data.limited) error("יותר מ־500 עמודים: יש לצמצם את הסינון כדי לשמור קטלוג מלא")
+                        val trusted=snapshot.catalog==null && !snapshot.includeMissing && !related
+                        val items=if(related) snapshot.items else if(trusted && snapshot.query.isBlank() && snapshot.filters.watched==null)
+                            data.raw.map { DiscoveryItem(it,serverMatched=true) }
+                        else coroutineScope { data.raw.map { p -> async { pool.withPermit { enrich(p,snapshot,strict=true).copy(serverMatched=trusted) } } }.awaitAll() }
+                        filteredState(snapshot.copy(items=items)).visible.forEach { output[it.preview.id]=it.preview }
+                        withContext(Dispatchers.Main) { mutable.update { it.copy(exportMessage="עמוד $page · ${output.size} כותרים") } }
+                        if(!data.more) break
+                        if(page>=500) error("המקור מגביל את החיפוש ל־500 עמודים. צמצם את הסינון; לא נשמר קטלוג חלקי")
+                        page++;offset=data.skip
+                    } while(true)
+                    output.values.map { SavedDiscoveryItem.from(it) }
                 }
-                val genreResponse = if(s.movie) api.getMovieGenres(apiKey(), "he") else api.getTvGenres(apiKey(), "he")
-                val genreList = genreResponse.body()?.genres.orEmpty().map { DiscoveryChoice(it.id.toString(), it.name) }
-                val enriched = coroutineScope { raw.map { p -> async { pool.withPermit { enrich(p, s).let { it.copy(popularity = popularities[p.id] ?: it.popularity) } } } }.awaitAll() }
-                if(token != generation) return@launch
-                skip = pendingSkip
-                retryReset = false
-                mutable.update { it.copy(items = (if(reset) enriched else it.items + enriched).distinctBy { item -> item.preview.id },
-                    loading=false,hasMore=more,page=next,genres=genreList,
-                    localScope=s.catalog != null || s.includeMissing || s.filters.watched != null || s.sort == DiscoverySort.TITLE || s.sort == DiscoverySort.RUNTIME) }
-                render()
-            } catch(e: CancellationException) { throw e } catch(e: Exception) {
-                if(token == generation) {
-                    retryReset = reset
-                    mutable.update { it.copy(loading=false,error=e.message ?: "הטעינה נכשלה") }
-                }
+                ensureActive()
+                if(activeProfile!=profile) error("הפרופיל השתנה; הייצוא בוטל")
+                val source=TmdbCollectionSource(TmdbCollectionSourceType.DISCOVER,name.trim(),mediaType=if(snapshot.movie) TmdbCollectionMediaType.MOVIE else TmdbCollectionMediaType.TV,snapshot=saved)
+                val collection=com.nuvio.tv.domain.model.Collection(collectionsStore.generateId(),name.trim(),pinToTop=true,
+                    folders=listOf(CollectionFolder(collectionsStore.generateId(),name.trim(),coverImageUrl=saved.firstOrNull()?.poster,sources=listOf(source))))
+                withContext(Dispatchers.IO) { collectionsStore.addCollection(collection,profile) }
+                mutable.update { it.copy(exporting=false,exportMessage="נשמר קטלוג: ${name.trim()} · ${saved.size} כותרים") }
+            } catch(e:CancellationException) { throw e } catch(e:Exception) {
+                mutable.update { it.copy(exporting=false,exportMessage=e.message ?: "הייצוא נכשל; לא נשמר קטלוג חלקי") }
             }
         }
     }
-    private fun image(path: String?) = path?.let { "https://image.tmdb.org/t/p/w780$it" }
-    private suspend fun enrich(p: MetaPreview, s: DiscoveryState): DiscoveryItem {
-        val key = "${p.apiType}:${p.id}:${s.titleLanguages.joinToString()}:${s.filters.actors.isNotEmpty()}:${s.filters.keyword != null}"
-        cache[key]?.let { return it }
+    private fun image(path: String?) = path?.let { "https://image.tmdb.org/t/p/w500$it" }
+    private suspend fun enrich(p: MetaPreview, s: DiscoveryState, strict:Boolean=false): DiscoveryItem {
+        val key = "${p.apiType}:${p.id}:${s.titleLanguages.joinToString()}:${s.filters.actors.isNotEmpty()}:${s.filters.keyword != null}:${s.filters.certification != null}"
+        synchronized(cache) { cache[key] }?.let { return it }
         try {
             val id = p.id.removePrefix("tmdb:").toIntOrNull() ?: api.findByExternalId(p.imdbId ?: p.id,apiKey()).body()?.let { if(s.movie) it.movieResults?.firstOrNull()?.id else it.tvResults?.firstOrNull()?.id }
                 ?: return DiscoveryItem(p)
-            val details = if(s.movie) api.getMovieDetails(id,apiKey(),s.titleLanguages.firstOrNull { it != "original" }) else api.getTvDetails(id,apiKey(),s.titleLanguages.firstOrNull { it != "original" })
-            val d = details.body() ?: return DiscoveryItem(p)
+            val append = buildList { add("translations"); add("images"); add("external_ids")
+                if(s.filters.certification != null) add("release_dates")
+                if(s.filters.actors.isNotEmpty() && s.movie) add("credits")
+                if(s.filters.keyword != null) add("keywords") }.joinToString(",")
+            val details = api.discoveryDetails(if(s.movie) "movie" else "tv",id,apiKey(),s.titleLanguages.firstOrNull { it != "original" },append,
+                (s.titleLanguages.filter { it != "original" } + listOf("null")).distinct().joinToString(","))
+            val d = details.body() ?: if(strict) error("טעינת המטא־דאטה נכשלה; הייצוא לא הושלם") else return DiscoveryItem(p)
             val original = d.originalTitle ?: d.originalName ?: p.name
-            val translations = api.discoveryTranslations(if(s.movie) "movie" else "tv", id, apiKey()).body()?.translations.orEmpty()
+            val translations = d.translations?.translations.orEmpty()
             val names = s.titleLanguages.map { lang ->
                 if(lang == "original") original else translations.firstOrNull { it.language == lang && !(it.data.title ?: it.data.name).isNullOrBlank() }?.data?.let { it.title ?: it.name }.orEmpty()
             }
             val searchNames = translations.filter { it.language in listOf("he", "en") }.mapNotNull { it.data.title ?: it.data.name }
             val logoLanguages = (s.titleLanguages.map { if(it == "original") d.originalLanguage else it }.filterNotNull().filter(String::isNotBlank) + "null").distinct().joinToString(",")
-            val imageData = (if(s.movie) api.getMovieImages(id,apiKey(),logoLanguages) else api.getTvImages(id,apiKey(),logoLanguages)).body()
-            val age = if(s.movie) api.getMovieReleaseDates(id,apiKey()).body()?.results?.firstOrNull { it.iso31661 == "US" }?.releaseDates?.firstNotNullOfOrNull { it.certification?.takeIf(String::isNotBlank) } else null
-            val actors = if(s.filters.actors.isNotEmpty() && s.movie) api.getMovieCredits(id,apiKey()).body()?.cast?.mapNotNull { it.id }?.toSet() else null
-            val keywords = if(s.filters.keyword != null) api.discoveryKeywords(if(s.movie) "movie" else "tv",id,apiKey()).body()?.let { it.keywords ?: it.results }?.map { it.id }?.toSet() else null
-            val imdb = p.imdbId ?: (if(s.movie) api.getMovieExternalIds(id,apiKey()) else api.getTvExternalIds(id,apiKey())).body()?.imdbId
+            val imageData = d.images
+            val age = if(s.movie) d.releaseDates?.results?.firstOrNull { it.iso31661 == "US" }?.releaseDates?.firstNotNullOfOrNull { it.certification?.takeIf(String::isNotBlank) } else null
+            val actors = if(s.filters.actors.isNotEmpty() && s.movie) d.credits?.cast?.mapNotNull { it.id }?.toSet() else null
+            val keywords = if(s.filters.keyword != null) d.keywords?.let { it.keywords ?: it.results }?.map { it.id }?.toSet() else null
+            val imdb = p.imdbId ?: d.externalIds?.imdbId
             val item = DiscoveryItem(p.copy(imdbId=imdb,name=names.firstOrNull(String::isNotBlank) ?: original,
                 poster=image(d.posterPath) ?: p.poster,background=image(d.backdropPath) ?: p.background,
                 logo=imageData?.logos?.let { logos -> (s.titleLanguages.map { if(it=="original") d.originalLanguage else it } + listOf(null)).firstNotNullOfOrNull { lang -> logos.firstOrNull { it.iso6391==lang }?.filePath } }?.let { "https://image.tmdb.org/t/p/w500$it" } ?: p.logo,
                 imdbRating=d.voteAverage?.toFloat() ?: p.imdbRating,description=d.overview ?: p.description,genres=d.genres.orEmpty().map { it.name },runtime=(d.runtime ?: d.episodeRunTime?.firstOrNull())?.toString(),
                 released=d.releaseDate ?: d.firstAirDate ?: p.released,releaseInfo=(d.releaseDate ?: d.firstAirDate)?.take(4) ?: p.releaseInfo,language=d.originalLanguage,status=d.status,ageRating=age,country=d.originCountry?.joinToString() ?: d.productionCountries?.mapNotNull { it.iso31661 }?.joinToString(),voteCount=d.voteCount ?: p.voteCount),
-                (names + searchNames + original + p.name).filter(String::isNotBlank).distinct(),d,actors,keywords,d.popularity)
-            cache[key] = item
+                (names + searchNames + original + p.name).filter(String::isNotBlank).distinct(),
+                d.copy(images=null,translations=null,externalIds=null,releaseDates=null,credits=null,keywords=null),actors,keywords,d.popularity)
+            synchronized(cache) { cache[key] = item }
             return item
-        } catch(e: CancellationException) { throw e } catch(_: Exception) { return DiscoveryItem(p) }
+        } catch(e: CancellationException) { throw e } catch(e: Exception) { if(strict) throw e; return DiscoveryItem(p) }
     }
-    private fun render() {
-        mutable.update { s ->
-            val f = s.filters
+    private fun render() { mutable.update(::filteredState) }
+    private fun filteredState(s:DiscoveryState):DiscoveryState {
             fun accepts(known: Boolean, matches: () -> Boolean) = if(!known) s.includeMissing else matches()
             val watchedIds = if(s.movie) watchedMovies else watchedSeries.fullyWatchedSeriesIds.value
             fun member(set: Set<String>, p: MetaPreview) = p.id in set || p.imdbId?.let { it in set } == true
             val filtered = s.items.filter { item ->
+                // TMDB has already applied these criteria. Do not hide valid raw results
+                // while waiting for decorative metadata. Personal membership stays local.
+                val f = if(item.serverMatched) DiscoveryFilters(watched=s.filters.watched) else s.filters
                 val p = item.preview; val d = item.details
                 val year = p.releaseInfo?.take(4)?.toIntOrNull(); val duration = discoveryRuntimeMinutes(p.runtime)
                 (s.query.isBlank() || item.names.any { it.contains(s.query.trim(),true) }) &&
@@ -400,8 +470,7 @@ class DiscoveryViewModel @Inject constructor(
                 DiscoverySort.POPULARITY -> if(s.catalog == null && !relatedSource) filtered else filtered.sortedBy { it.popularity ?: -1.0 }
             }
             val order = if(s.descending && (s.sort != DiscoverySort.POPULARITY || s.catalog != null || relatedSource)) sorted.reversed() else sorted
-            s.copy(visible=order)
-        }
+            return s.copy(visible=order)
     }
 }
 

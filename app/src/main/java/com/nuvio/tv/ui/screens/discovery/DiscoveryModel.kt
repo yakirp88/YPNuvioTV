@@ -33,6 +33,9 @@ data class DiscoveryChoice(val id: String, val name: String)
 enum class DiscoveryView { POSTERS, LIST, CARDS, CLEAR_LOGO, LANDSCAPE, BANNERS;
     fun next() = entries[(ordinal + 1) % entries.size]
 }
+
+fun discoveryShouldPrefetch(focusedIndex: Int, count: Int, columns: Int): Boolean =
+    focusedIndex >= 0 && count > 0 && focusedIndex >= (count - columns.coerceAtLeast(1) * 2).coerceAtLeast(0)
 enum class DiscoverySort(val serverKey: String?) {
     POPULARITY("popularity"), TITLE(null), RELEASE(null), SCORE("vote_average"), VOTES("vote_count"), RUNTIME(null)
 }

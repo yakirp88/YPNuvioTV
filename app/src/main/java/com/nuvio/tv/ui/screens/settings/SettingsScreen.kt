@@ -928,6 +928,16 @@ private fun ContentDiscoverySettingsContent(
     showPlugins: Boolean,
     initialFocusRequester: FocusRequester?
 ) {
+    var showDisplay by remember { mutableStateOf(false) }
+    BackHandler(showDisplay) { showDisplay=false }
+    if(showDisplay) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(NuvioTheme.spacing.md)) {
+            SettingsDetailHeader(title="תצוגת תוכן וגילוי",subtitle="שפות, מידע חסר ותצוגה")
+            SettingsActionRow(title="חזרה",subtitle=null,onClick={showDisplay=false})
+            DiscoverySettingsContent()
+        }
+        return
+    }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)
@@ -936,7 +946,10 @@ private fun ContentDiscoverySettingsContent(
             title = stringResource(R.string.settings_content_discovery),
             subtitle = stringResource(R.string.settings_content_discovery_subtitle)
         )
-        DiscoverySettingsContent(initialFocusRequester)
+        SettingsGroupCard(modifier=Modifier.fillMaxWidth()) {
+            SettingsActionRow(title="תצוגת תוכן וגילוי",subtitle="שפות שמות התוכן ומידע חסר",onClick={showDisplay=true},
+                modifier=initialFocusRequester?.let{Modifier.focusRequester(it)} ?: Modifier)
+        }
         SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
             SettingsActionRow(
                 title = stringResource(R.string.addon_title),
