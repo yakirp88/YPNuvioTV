@@ -7,7 +7,9 @@ class DiscoveryPolicyTest {
     @Test fun informationDefaultsToTopAndDelayIsBounded() {
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition(null))
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("invalid"))
-        assertEquals(DiscoveryInfoPosition.MIDDLE,discoveryInfoPosition("MIDDLE"))
+        assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("MIDDLE"))
+        assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("EXPAND"))
+        assertEquals(DiscoveryInfoPosition.SIDE,discoveryInfoPosition("SIDE"))
         assertEquals(3,discoveryExpansionDelay(null))
         assertEquals(0,discoveryExpansionDelay("-1"))
         assertEquals(10,discoveryExpansionDelay("15"))
@@ -76,11 +78,40 @@ class DiscoveryPolicyTest {
         assertNull(discoveryRuntimeMinutes("unknown"))
         assertNull(discoveryRuntimeMinutes(null))
     }
-    @Test fun sixViewsCycleBackToStart() {
+    @Test fun fourCardStylesCycleBackToStart() {
         var view=DiscoveryView.POSTERS
         val seen=mutableSetOf<DiscoveryView>()
-        repeat(6){seen+=view;view=view.next()}
-        assertEquals(6,seen.size)
+        repeat(4){seen+=view;view=view.next()}
+        assertEquals(4,seen.size)
         assertEquals(DiscoveryView.POSTERS,view)
     }
+    @Test fun everyStyleHasFiveDistinctSizesAndKeepsNeighborsDuringExpansion() {
+        for(side in listOf(false,true)) for(style in DiscoveryView.entries) {
+            val columns=(0..4).map {discoveryColumns(style,it,side)}
+            assertEquals(5,columns.distinct().size)
+            assertTrue(columns.all {it>=3})
+            assertEquals(columns.last(),discoveryColumns(style,20,side))
+            for(count in columns) {
+                val normalNeighborFraction=count/(discoveryExpandedWeight(count)+count-1)
+                assertTrue(normalNeighborFraction>=.699f)
+                assertTrue(discoveryExpandedWeight(count)>1f)
+            }
+        }
+    }
+    @Test fun decadesFillBothBoundsAndPreserveOtherFilters() {
+        val f=DiscoveryFilters(country="IL",genres=setOf(28))
+        assertEquals(f.copy(yearFrom=1990,yearTo=1999),discoveryDecade(f,1990))
+    }
+    @Test fun removedViewsMigrateToModernCardStyles() {
+        assertEquals(DiscoveryView.POSTERS,discoveryCardStyle("LIST"))
+        assertEquals(DiscoveryView.LANDSCAPE,discoveryCardStyle("CARDS"))
+        assertEquals(DiscoveryView.CLEAR_LOGO,discoveryCardStyle("CLEAR_LOGO"))
+    }
+    @Test fun logoArtworkUsesOriginalSizeIncludingSvgAndPreservesAddonUrls() {
+        assertEquals("https://image.tmdb.org/t/p/original/logo.svg",discoveryLogoUrl("/logo.svg"))
+        assertEquals("https://image.tmdb.org/t/p/original/logo.png",discoveryLogoUrl("/logo.png"))
+        assertEquals("https://addon/logo.png",discoveryLogoUrl("https://addon/logo.png"))
+        assertNull(discoveryLogoUrl(""))
+    }
+
 }

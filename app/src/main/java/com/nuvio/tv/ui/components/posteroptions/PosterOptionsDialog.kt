@@ -49,6 +49,7 @@ fun PosterOptionsDialog(
     onDismiss: () -> Unit,
     onDetails: () -> Unit,
     onToggleLibrary: () -> Unit,
+    additionalActions: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {},
     onToggleWatched: () -> Unit
 ) {
     val primaryFocusRequester = remember { FocusRequester() }
@@ -116,6 +117,7 @@ fun PosterOptionsDialog(
                 )
             }
         }
+        additionalActions()
     }
 }
 
@@ -205,6 +207,7 @@ fun PosterListPickerDialog(
 fun PosterOptionsHost(
     state: PosterOptionsState,
     controller: PosterOptionsController,
+    additionalActions: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {},
     onNavigateToDetail: (id: String, type: String, addonBaseUrl: String) -> Unit
 ) {
     val target = state.target
@@ -235,6 +238,7 @@ fun PosterOptionsHost(
                     controller.dismiss()
                 }
             },
+            additionalActions = additionalActions,
             onToggleWatched = {
                 if (isMovie) {
                     controller.toggleMovieWatched()

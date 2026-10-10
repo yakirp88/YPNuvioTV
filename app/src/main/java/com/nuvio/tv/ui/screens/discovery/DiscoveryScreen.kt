@@ -21,6 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import com.nuvio.tv.ui.components.NuvioDialog
+import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.*
@@ -45,7 +52,7 @@ private val accent: Color @Composable get() = com.nuvio.tv.ui.theme.NuvioTheme.c
 private val background: Color @Composable get() = com.nuvio.tv.ui.theme.NuvioTheme.colors.Background
 private val panel: Color @Composable get() = com.nuvio.tv.ui.theme.NuvioTheme.colors.Surface
 private fun DiscoveryView.label() = when(this) {
-    DiscoveryView.POSTERS -> "רשת פוסטרים"; DiscoveryView.LIST -> "רשימה"; DiscoveryView.CARDS -> "כרטיסים גדולים"
+    DiscoveryView.POSTERS -> "פוסטר"
     DiscoveryView.CLEAR_LOGO -> "Clear Logo"; DiscoveryView.LANDSCAPE -> "פוסטרים רחבים"; DiscoveryView.BANNERS -> "באנרים"
 }
 private fun DiscoverySort.label() = when(this) {
@@ -57,6 +64,7 @@ private fun DiscoverySort.label() = when(this) {
 fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     viewModel: DiscoveryViewModel = hiltViewModel()) {
     val s by viewModel.state.collectAsState()
+    val options by viewModel.posterOptions.state.collectAsState()
     var overlay by rememberSaveable { mutableStateOf<String?>(null) }
     var lastFilter by rememberSaveable { mutableStateOf("year") }
     var gridFocusedId by remember { mutableStateOf<String?>(null) }
@@ -64,7 +72,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     var showText by rememberSaveable { mutableStateOf(false) }
     var actionItem by remember { mutableStateOf<MetaPreview?>(null) }
     var hint by remember { mutableStateOf<String?>(null) }
-    val grid = rememberLazyGridState()
+    val grid = androidx.compose.foundation.lazy.rememberLazyListState()
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
     val firstToolbar = remember { FocusRequester() }
     val textFocus = remember { FocusRequester() }
@@ -87,7 +95,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         val id = s.focusedId.takeIf { resumeFromDetail }
         val index = s.visible.indexOfFirst { it.preview.id == id }
         if(index >= 0) {
-            grid.scrollToItem(index)
+            grid.scrollToItem(index/discoveryColumns(s.view,s.size,s.infoPosition==DiscoveryInfoPosition.SIDE))
             withFrameNanos { }
             withFrameNanos { }
         }
@@ -97,13 +105,8 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     }
     LaunchedEffect(showText) { if(showText) textFocus.requestFocus() }
     LaunchedEffect(hint) { if(hint != null) { delay(1800); hint = null } }
-    val columns = when(s.view) {
-        DiscoveryView.LIST -> 1
-        DiscoveryView.POSTERS -> listOf(8,6,4)[s.size]
-        DiscoveryView.CLEAR_LOGO -> listOf(5,4,3)[s.size]
-        DiscoveryView.BANNERS -> listOf(3,2,1)[s.size]
-        else -> listOf(4,3,2)[s.size]
-    }
+    val side=s.infoPosition==DiscoveryInfoPosition.SIDE
+    val columns=discoveryColumns(s.view,s.size,side)
     // Deliberately trigger only when the user has reached the end, never drain a catalog
     // automatically merely because a local text filter has zero matches.
     LaunchedEffect(grid, s.visible.size, s.hasMore, s.loading,s.error,s.focusedId,columns) {
@@ -113,18 +116,21 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     }
     BackHandler(s.sourceLabel != null && !showText && overlay == null) { viewModel.restoreSource() }
     BackHandler(showText && overlay == null) { showText = false; firstToolbar.requestFocus() }
-    LaunchedEffect(s.focusedId,s.infoPosition,s.expansionDelay,gridFocusedId) {
+    LaunchedEffect(s.focusedId,s.expandCards,s.expansionDelay,gridFocusedId,overlay,showText,options.target?.id,s.trailerTitle) {
         expandedId=null
-        if(s.infoPosition==DiscoveryInfoPosition.EXPAND && gridFocusedId==s.focusedId && s.focusedId!=null) {
+        if(s.expandCards && options.target==null && s.trailerTitle==null && overlay==null && !showText && gridFocusedId==s.focusedId && s.focusedId!=null) {
             delay(s.expansionDelay*1000L);expandedId=s.focusedId
         }
     }
     val focused = s.visible.firstOrNull { it.preview.id == s.focusedId } ?: s.visible.firstOrNull()
+    val hero=s.heroPreview?.takeIf {it.id==focused?.preview?.id} ?: focused?.preview
+    LaunchedEffect(focused?.preview?.id,focused?.preview?.imdbId) { focused?.preview?.id?.let {viewModel.focus(it,true)} }
     fun navigate(p: MetaPreview) { returning=true; onNavigateToDetail(p.id,p.apiType,p.sourceAddonBaseUrl.orEmpty()) }
 
-    Column(Modifier.fillMaxSize().background(background).padding(horizontal=24.dp,vertical=12.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            Text("nuvio", color=Color.White,fontSize=20.sp)
+    Column(Modifier.fillMaxSize().background(background).padding(horizontal=18.dp,vertical=10.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            ContentSwitch(s.movie) { viewModel.selectType(!s.movie); showText=false; hint="הפילטרים והקטלוג אופסו" }
             RoundControl(Icons.Default.Search,"סינון טקסט",s.query.isNotBlank(),Modifier.focusRequester(firstToolbar)) { showText=!showText }
             Box {
                 RoundControl(Icons.Default.FilterList,"פילטרים",s.filters.active) { overlay="filter-menu" }
@@ -143,23 +149,20 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                 }
             }
             RoundControl(Icons.Default.LibraryBooks,"קטלוגים",s.catalog != null) { overlay="catalogs" }
-            RoundControl(Icons.Default.ViewCarousel,"תצוגה: ${s.view.label()}") { viewModel.cycleView(); hint="${s.view.next().label()} · ${(s.view.next().ordinal+1)}/6" }
-            RoundControl(Icons.Default.AspectRatio,"גודל פריטים") { viewModel.cycleSize(); hint="גודל: ${listOf("קטן","בינוני","גדול")[(s.size+1)%3]}" }
+            RoundControl(Icons.Default.ViewCarousel,"סגנון: ${s.view.label()}") { viewModel.cycleView(); hint="${s.view.next().label()} · ${(s.view.next().ordinal+1)}/4" }
+            RoundControl(Icons.Default.AspectRatio,"גודל ${s.size+1} מתוך 5") { viewModel.cycleSize(); hint="גודל ${(s.size+1)%5+1} מתוך 5" }
             RoundControl(Icons.Default.Save,"ייצוא לקטלוג") { overlay="export" }
             RoundControl(Icons.Default.RestartAlt,"איפוס") { viewModel.reset(); hint="הפילטרים והקטלוג אופסו" }
             Spacer(Modifier.weight(1f))
-            ContentSwitch(s.movie) { viewModel.selectType(!s.movie); showText=false; hint="הפילטרים והקטלוג אופסו" }
         }
-        Box(Modifier.height(30.dp)) { hint?.let { Text(it,color=accent,fontSize=12.sp) } }
+        }
+        Box(Modifier.height(24.dp)) { hint?.let { Text(it,color=accent,fontSize=12.sp) } }
         if(showText) Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(s.query, viewModel::text, Modifier.weight(1f).focusRequester(textFocus),singleLine=true,textStyle=androidx.compose.ui.text.TextStyle(color=Color.White),label={ Text("סינון בתוצאות שנטענו",color=Color.LightGray) })
             Action("×", { viewModel.text("") })
             Text("${s.visible.size} מתוך ${s.items.size} שנטענו",color=Color.LightGray,fontSize=12.sp)
         }
-        Row(horizontalArrangement=Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically) {
-            Text(s.sourceLabel ?: s.catalog?.let { "${it.catalogName} · ${it.addonName}" } ?: if(s.movie) "כל הסרטים" else "כל הסדרות",color=Color.White,fontSize=15.sp)
-            if(s.localScope) Text("סינון / מיון בתוצאות שנטענו",color=accent,fontSize=11.sp)
-        }
+        if(s.sourceLabel!=null || s.catalog!=null) Text(s.sourceLabel ?: "${s.catalog?.catalogName} · ${s.catalog?.addonName}",color=accent,fontSize=11.sp)
         if(s.filters.active) ActiveFilters(s.filters,viewModel::filter)
         if(s.error != null) Row(verticalAlignment=Alignment.CenterVertically) {
             Text(s.error!!,Modifier.weight(1f),color=Color.LightGray,fontSize=12.sp)
@@ -167,63 +170,64 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         }
         LaunchedEffect(s.view,s.size) {
             val index=s.visible.indexOfFirst { it.preview.id == s.focusedId }
-            if(index >= 0) grid.scrollToItem(index)
+            if(index >= 0) grid.scrollToItem(index/columns)
         }
-        if(s.infoPosition==DiscoveryInfoPosition.TOP) DiscoveryInfo(focused?.preview)
-        if(s.visible.isEmpty() && !s.loading && s.metadataPending==0) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
-            Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                Text(if(s.query.isNotBlank()) "אין התאמות בתוצאות שנטענו" else "אין תוצאות עבור הבחירות האלה",color=Color.LightGray)
-                if(s.hasMore) Action("טען עוד תוצאות לבדיקה", { viewModel.load() })
-            }
-        } else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val tileWidth=(maxWidth-10.dp*(columns-1))/columns
-            val rowHeight=when(s.view) {
-                DiscoveryView.POSTERS -> tileWidth*1.5f
-                DiscoveryView.CLEAR_LOGO -> listOf(70,90,120)[s.size].dp
-                DiscoveryView.LIST -> listOf(52,66,88)[s.size].dp
-                DiscoveryView.CARDS -> tileWidth*9f/16f+86.dp
-                DiscoveryView.BANNERS -> tileWidth/5.4f
-                else -> tileWidth*9f/16f
-            }
-            val middle=s.infoPosition==DiscoveryInfoPosition.MIDDLE
-            val anchorTop=if(middle) (maxHeight/2-rowHeight).coerceAtLeast(0.dp) else 0.dp
-            val focusIndex=s.visible.indexOfFirst {it.preview.id==s.focusedId}.coerceAtLeast(0)
-            val selectedRow=focusIndex/columns
-            LaunchedEffect(middle,selectedRow,s.view,s.size) {
-                if(middle) grid.scrollToItem(selectedRow*columns)
-            }
-            LazyVerticalGrid(GridCells.Fixed(columns),state=grid,modifier=Modifier.fillMaxSize(),
-                contentPadding=PaddingValues(top=anchorTop,bottom=if(middle) maxHeight/2 else 0.dp),
-                horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                s.visible.forEachIndexed { index,entry ->
-                    item(key=entry.preview.id,span={GridItemSpan(if(expandedId==entry.preview.id) columns.coerceAtMost(2) else 1)}) {
-                        val r = remember(entry.preview.id) { FocusRequester() }
-                        DisposableEffect(entry.preview.id) { requesters[entry.preview.id]=r; onDispose { requesters.remove(entry.preview.id) } }
-                        DiscoveryTile(entry.preview,s.view,s.size,Modifier.focusRequester(r),expanded=expandedId==entry.preview.id,
-                            onFocus={viewModel.focus(entry.preview.id)},onFocusState={hasFocus -> if(hasFocus) gridFocusedId=entry.preview.id else if(gridFocusedId==entry.preview.id) gridFocusedId=null},
-                            onClick={navigate(entry.preview)},onHold={actionItem=entry.preview;overlay="actions"})
-                    }
-                    if(middle && (index==((selectedRow+1)*columns-1).coerceAtMost(s.visible.lastIndex))) {
-                        item(key="fixed-info",span={GridItemSpan(maxLineSpan)}) { DiscoveryInfo(focused?.preview) }
+        val contentDirection=LocalLayoutDirection.current
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(Modifier.weight(1f).fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                if(side) CompositionLocalProvider(LocalLayoutDirection provides contentDirection) {
+                    DiscoveryHero(hero,focused?.details?.voteAverage,hasImdb=s.heroPreview!=null || focused?.details==null,
+                        side=true,modifier=Modifier.fillMaxHeight().weight(1f))
+                }
+                CompositionLocalProvider(LocalLayoutDirection provides contentDirection) {
+                    Column(Modifier.fillMaxHeight().weight(if(side) 2f else 1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                        if(!side) DiscoveryHero(hero,focused?.details?.voteAverage,hasImdb=s.heroPreview!=null || focused?.details==null,
+                            side=false,modifier=Modifier.fillMaxWidth().height(190.dp))
+                        if(s.visible.isEmpty() && !s.loading && s.metadataPending==0) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                            Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                                Text(if(s.query.isNotBlank()) "אין התאמות בתוצאות שנטענו" else "אין תוצאות עבור הבחירות האלה",color=Color.LightGray)
+                                if(s.hasMore) Action("טען עוד תוצאות לבדיקה", { viewModel.load() })
+                            }
+                        } else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                            val gap=8.dp
+                            val normalWidth=(maxWidth-gap*(columns-1))/columns
+                            val cardHeight=when(s.view) {
+                                DiscoveryView.POSTERS -> normalWidth*1.5f
+                                DiscoveryView.CLEAR_LOGO -> normalWidth*.45f
+                                DiscoveryView.BANNERS -> normalWidth/3.2f
+                                DiscoveryView.LANDSCAPE -> normalWidth*9f/16f
+                            }
+                            // Keys and row composition stay stable during expansion. Only weights animate.
+                            LazyColumn(state=grid,modifier=Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(gap)) {
+                                items(s.visible.chunked(columns),key={row->row.first().preview.id}) {row ->
+                                    Row(Modifier.fillMaxWidth().height(cardHeight),horizontalArrangement=Arrangement.spacedBy(gap)) {
+                                        row.forEach {entry -> key(entry.preview.id) {
+                                            val r=remember {FocusRequester()}
+                                            val expanded=expandedId==entry.preview.id
+                                            val weight by androidx.compose.animation.core.animateFloatAsState(
+                                                if(expanded) discoveryExpandedWeight(columns) else 1f,label="discovery card width")
+                                            DisposableEffect(entry.preview.id) {requesters[entry.preview.id]=r;onDispose {requesters.remove(entry.preview.id)}}
+                                            DiscoveryTile(entry.preview,s.view,s.size,Modifier.weight(weight).fillMaxHeight().focusRequester(r),expanded=expanded,
+                                                onFocus={viewModel.focus(entry.preview.id)},
+                                                onFocusState={hasFocus->if(hasFocus) gridFocusedId=entry.preview.id else if(gridFocusedId==entry.preview.id) gridFocusedId=null},
+                                                onClick={navigate(entry.preview)},onHold={actionItem=entry.preview;viewModel.prepareActions(entry.preview);viewModel.posterOptions.show(entry.preview,entry.preview.sourceAddonBaseUrl)})
+                                        }}
+                                        repeat(columns-row.size) {Spacer(Modifier.weight(1f))}
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        if(s.infoPosition==DiscoveryInfoPosition.BOTTOM) DiscoveryInfo(focused?.preview)
         s.exportMessage?.let { Text(it,color=accent,fontSize=12.sp) }
         if(s.exporting) Action("בטל ייצוא",viewModel::cancelExport)
         Box(Modifier.height(18.dp)) { if(s.loading || s.metadataPending>0) Text(if(s.loading) "טוען עוד…" else "משלים פרטים…",color=accent,fontSize=12.sp) }
     }
-    if(overlay != null && overlay!="filter-menu" && overlay!="sort-menu" && !(overlay?.startsWith("filter:")==true && overlay!!.substringAfter(':') in inlineFilterKinds)) {
+    if(overlay != null && overlay!="actions" && overlay!="filter-menu" && overlay!="sort-menu" && !(overlay?.startsWith("filter:")==true && overlay!!.substringAfter(':') in inlineFilterKinds)) {
         DiscoveryOverlay(onClose={overlay=if(overlay?.startsWith("filter:")==true) "filter-menu" else null},back=overlay?.startsWith("filter:")==true) {
             when(overlay) {
-                "actions" -> actionItem?.let { p ->
-                    Text(p.name,color=Color.White,fontSize=18.sp)
-                    Action("פרטים",{overlay=null;navigate(p)})
-                    Action("רשימת צפייה / נצפה",{overlay=null;viewModel.posterOptions.show(p,p.sourceAddonBaseUrl.orEmpty())})
-                    Action("תוכן דומה",{overlay=null;viewModel.similar(p)})
-                    if(s.movie) Action("שחקנים ובמאי",{overlay="people";viewModel.actorFromTitle(p)})
-                }
                 "people" -> {
                     Text("שחקנים ובמאי",color=Color.White,fontSize=18.sp)
                     LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -243,8 +247,22 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
             }
         }
     }
-    val options by viewModel.posterOptions.state.collectAsState()
+    s.trailerTitle?.let {title -> com.nuvio.tv.ui.screens.detail.SharedTrailerOverlay(
+        title=title,trailerUrl=s.trailerSource?.videoUrl,trailerAudioUrl=s.trailerSource?.audioUrl,
+        isLoading=s.trailerLoading,errorMessage=s.trailerError,
+        onDismiss={viewModel.closeTrailer();actionItem?.id?.let {requesters[it]?.let {r->runCatching {r.requestFocus()}}}},
+        onRetry={actionItem?.let(viewModel::playTrailer)})}
+    var menuWasOpen by remember {mutableStateOf(false)}
+    LaunchedEffect(options.target?.id,options.listPickerActive) {
+        if(options.target!=null || options.listPickerActive) menuWasOpen=true
+        else if(menuWasOpen) {menuWasOpen=false;actionItem?.id?.let {requesters[it]?.let {r->runCatching {r.requestFocus()}}}}
+    }
     com.nuvio.tv.ui.components.posteroptions.PosterOptionsHost(options,viewModel.posterOptions,
+        additionalActions={ actionItem?.let {p ->
+            DiscoveryNativeAction("ניגון טריילר",enabled=s.actionTrailerAvailable!=false) {viewModel.posterOptions.dismiss();viewModel.playTrailer(s.heroPreview?.takeIf {it.id==p.id} ?: p)}
+            DiscoveryNativeAction("תוכן דומה") {viewModel.posterOptions.dismiss();viewModel.similar(p)}
+            if(s.movie) DiscoveryNativeAction("שחקנים ובמאי") {viewModel.posterOptions.dismiss();overlay="people";viewModel.actorFromTitle(p)}
+        } },
         onNavigateToDetail={id,type,url -> returning=true; onNavigateToDetail(id,type,url)})
 }
 
@@ -252,76 +270,79 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
 private fun RoundControl(icon: ImageVector,label: String,active: Boolean=false,modifier: Modifier=Modifier,onClick:()->Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(horizontalAlignment=Alignment.CenterHorizontally) {
-        Box(modifier.size(34.dp).clip(CircleShape).background(if(active) accent.copy(alpha=.12f) else panel)
+        Box(modifier.size(30.dp).clip(CircleShape).background(if(active) accent.copy(alpha=.12f) else panel)
             .border(if(focused) 2.dp else 1.dp,if(focused) accent else Color(0xff344047),CircleShape)
             .onFocusChanged { focused=it.isFocused }.clickable(onClick=onClick).semantics { contentDescription=label; if(active) stateDescription="פעיל" },contentAlignment=Alignment.Center) {
             Icon(icon,label,Modifier.size(17.dp),tint=if(active || focused) accent else Color.White)
         }
         if(focused) androidx.compose.ui.window.Popup(alignment=Alignment.TopCenter,
-            offset=androidx.compose.ui.unit.IntOffset(0,with(androidx.compose.ui.platform.LocalDensity.current){42.dp.roundToPx()})) {
+            offset=androidx.compose.ui.unit.IntOffset(0,with(androidx.compose.ui.platform.LocalDensity.current){38.dp.roundToPx()})) {
             Text(label,Modifier.background(panel,RoundedCornerShape(6.dp)).padding(5.dp),color=Color.White,fontSize=11.sp)
         }
     }
 }
 @Composable
 private fun ContentSwitch(movie: Boolean,onClick:()->Unit) {
-    val offset by animateDpAsState(if(movie) 25.dp else 3.dp,label="content switch")
-    CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
-    Row(Modifier.clip(RoundedCornerShape(24.dp)).clickable(onClick=onClick).padding(6.dp)
-        .semantics { contentDescription="החלף סרטים וסדרות"; stateDescription=if(movie) "סרטים" else "סדרות" },
-        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-        Text("סדרות",color=if(!movie) accent else Color.Gray,fontSize=13.sp)
-        // Absolute positioning keeps the left/right thumb consistent in RTL layouts.
-        Box(Modifier.width(48.dp).height(24.dp).background(panel,CircleShape).border(1.dp,Color.DarkGray,CircleShape)) {
-            Box(Modifier.absoluteOffset(x=offset,y=3.dp).size(18.dp).background(Color.White,CircleShape))
+    var focused by remember {mutableStateOf(false)}
+    val thumb by animateDpAsState(if(movie) 0.dp else 62.dp,label="content switch")
+    val colors=com.nuvio.tv.ui.theme.NuvioTheme.colors
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        Box(Modifier.width(128.dp).height(30.dp).clip(CircleShape).background(panel)
+            .border(if(focused) 2.dp else 1.dp,if(focused) accent else colors.Border,CircleShape)
+            .onFocusChanged {focused=it.isFocused}.clickable(onClick=onClick)
+            .semantics {contentDescription="החלף סרטים וסדרות";stateDescription=if(movie) "סרטים" else "סדרות"}) {
+            Box(Modifier.offset(x=thumb,y=3.dp).width(62.dp).height(24.dp).background(accent,CircleShape))
+            Row(Modifier.fillMaxSize(),verticalAlignment=Alignment.CenterVertically) {
+                Text("סרטים",Modifier.weight(1f),color=if(movie) colors.OnSecondary else colors.TextSecondary,fontSize=11.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                Text("סדרות",Modifier.weight(1f),color=if(!movie) colors.OnSecondary else colors.TextSecondary,fontSize=11.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+            }
         }
-        Text("סרטים",color=if(movie) accent else Color.Gray,fontSize=13.sp)
-    }
     }
 }
 @Composable
 private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:Modifier,expanded:Boolean=false,onFocus:()->Unit,onFocusState:(Boolean)->Unit,onClick:()->Unit,onHold:()->Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val shape=RoundedCornerShape(6.dp)
-    val base=modifier.fillMaxWidth().onFocusChanged { focused=it.isFocused; onFocusState(it.isFocused); if(it.isFocused) onFocus() }
-        .clip(shape).background(if(view == DiscoveryView.CLEAR_LOGO) background else panel)
+    var focused by remember {mutableStateOf(false)}
+    var longPressTriggered by remember {mutableStateOf(false)}
+    val tracker=rememberLongPressKeyTracker()
+    val shape=RoundedCornerShape(8.dp)
+    fun hold(){longPressTriggered=true;onHold()}
+    val base=modifier.onFocusChanged {focused=it.isFocused;onFocusState(it.isFocused);if(it.isFocused) {longPressTriggered=false;onFocus()}}
+        .onPreviewKeyEvent {event ->
+            val native=event.nativeKeyEvent
+            fun select(code:Int)=code==android.view.KeyEvent.KEYCODE_DPAD_CENTER || code==android.view.KeyEvent.KEYCODE_ENTER || code==android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+            when {
+                native.keyCode==android.view.KeyEvent.KEYCODE_MENU && native.action==android.view.KeyEvent.ACTION_DOWN -> {hold();true}
+                tracker.handle(native,::select,::hold) -> {if(native.action==android.view.KeyEvent.ACTION_UP) longPressTriggered=false;true}
+                longPressTriggered && native.action==android.view.KeyEvent.ACTION_UP && select(native.keyCode) -> {longPressTriggered=false;true}
+                else -> false
+            }
+        }
+        .clip(shape).background(if(view==DiscoveryView.CLEAR_LOGO && !expanded) background else panel)
         .border(if(focused) 2.dp else 0.dp,if(focused) accent else Color.Transparent,shape)
-        .combinedClickable(onClick=onClick,onLongClick=onHold).semantics { contentDescription=p.name }
-    if(expanded) {
-        Column(base.animateContentSize()) {
-            AsyncImage(p.background ?: p.landscapePoster ?: p.poster,p.name,Modifier.fillMaxWidth().aspectRatio(16f/9),contentScale=ContentScale.Crop)
-            DiscoveryInfo(p,compact=true)
-        }
-        return
-    }
-    when(view) {
-        DiscoveryView.CLEAR_LOGO -> Box(base.height(listOf(70,90,120)[size].dp).padding(12.dp),contentAlignment=Alignment.Center) {
-            var imageFailed by remember(p.logo) {mutableStateOf(false)}
-            if(!p.logo.isNullOrBlank() && !imageFailed) AsyncImage(p.logo,p.name,Modifier.fillMaxSize(),contentScale=ContentScale.Fit,onError={imageFailed=true})
-            else Text(p.name,color=Color.White,fontSize=listOf(13,15,18)[size].sp,maxLines=2)
-        }
-        DiscoveryView.LIST -> Row(base.height(listOf(52,66,88)[size].dp).padding(5.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            AsyncImage(p.poster,p.name,Modifier.heightIn(max=80.dp).aspectRatio(2f/3),contentScale=ContentScale.Crop)
-            Text(p.name,Modifier.weight(1f),color=Color.White,maxLines=1)
-            Text("${p.releaseInfo.orEmpty()} · ${p.imdbRating ?: "—"} · ${p.runtime ?: "—"}",color=Color.LightGray,fontSize=12.sp)
-        }
-        DiscoveryView.CARDS -> Column(base) {
-            AsyncImage(p.backdropUrl,p.name,Modifier.fillMaxWidth().aspectRatio(16f/9),contentScale=ContentScale.Crop)
-            Column(Modifier.padding(8.dp).height(70.dp)) {
-                Text(p.name,color=Color.White,maxLines=1,fontSize=14.sp)
-                Text("${p.releaseInfo.orEmpty()} · ${p.imdbRating ?: "—"}",color=Color.LightGray,fontSize=11.sp)
-                if(focused) Text(p.description.orEmpty(),color=Color.LightGray,fontSize=11.sp,maxLines=2)
-            }
-        }
-        else -> Box(base.aspectRatio(when(view) { DiscoveryView.POSTERS -> 2f/3; DiscoveryView.BANNERS -> 5.4f; else -> 16f/9 })) {
-            AsyncImage(if(view == DiscoveryView.POSTERS) p.poster else p.landscapePoster ?: p.background ?: p.poster,p.name,
-                Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
-            if(view != DiscoveryView.POSTERS) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha=.35f)).padding(5.dp),contentAlignment=Alignment.Center) {
-                if(p.logo != null) AsyncImage(p.logo,p.name,Modifier.height(if(view == DiscoveryView.BANNERS) 28.dp else 34.dp).fillMaxWidth(),contentScale=ContentScale.Fit)
-                else Text(p.name,color=Color.White,fontSize=13.sp,maxLines=1)
+        .combinedClickable(onClick={if(longPressTriggered) longPressTriggered=false else onClick()},onLongClick=::hold)
+        .semantics {contentDescription=p.name}
+    Box(base,contentAlignment=Alignment.Center) {
+        var logoFailed by remember(p.logo) {mutableStateOf(false)}
+        if(view==DiscoveryView.CLEAR_LOGO && !expanded) {
+            if(!p.logo.isNullOrBlank() && !logoFailed) AsyncImage(p.logo,p.name,Modifier.fillMaxSize().padding(10.dp),contentScale=ContentScale.Fit,onError={logoFailed=true})
+            else Text(p.name,Modifier.padding(8.dp),color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary,fontSize=13.sp,maxLines=2)
+        } else {
+            AsyncImage(if(expanded) p.background ?: p.landscapePoster ?: p.poster else if(view==DiscoveryView.POSTERS) p.poster else p.landscapePoster ?: p.background ?: p.poster,
+                p.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+            if(view!=DiscoveryView.POSTERS || expanded) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.65f))))
+                .padding(6.dp),contentAlignment=Alignment.Center) {
+                if(!p.logo.isNullOrBlank() && !logoFailed) AsyncImage(p.logo,p.name,Modifier.heightIn(max=32.dp).fillMaxWidth(),contentScale=ContentScale.Fit,onError={logoFailed=true})
+                else Text(p.name,color=Color.White,fontSize=12.sp,maxLines=1)
             }
         }
     }
+}
+@Composable
+private fun DiscoveryNativeAction(label:String,modifier:Modifier=Modifier,enabled:Boolean=true,onClick:()->Unit) {
+    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth(),colors=ButtonDefaults.colors(
+        containerColor=com.nuvio.tv.ui.theme.NuvioTheme.colors.BackgroundCard,
+        contentColor=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary)) {Text(label)}
 }
 @Composable
 internal fun Action(label:String,onClick:()->Unit,active:Boolean=false,modifier:Modifier=Modifier) {
@@ -329,15 +350,6 @@ internal fun Action(label:String,onClick:()->Unit,active:Boolean=false,modifier:
     Text(label,modifier.clip(RoundedCornerShape(4.dp)).background(if(focus) accent.copy(alpha=.12f) else Color.Transparent)
         .onFocusChanged {focus=it.isFocused}.clickable(onClick=onClick).padding(horizontal=8.dp,vertical=6.dp),
         color=if(active || focus) accent else com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary,fontSize=12.sp,maxLines=1)
-}
-@Composable
-private fun DiscoveryInfo(p:MetaPreview?,compact:Boolean=false) {
-    Box(Modifier.fillMaxWidth().height(if(compact) 54.dp else 66.dp).background(panel.copy(alpha=.45f)).padding(8.dp)) {
-        p?.let {Column {
-            Text("${it.name}   ${it.releaseInfo.orEmpty()} · ${it.imdbRating ?: "—"}",color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary,fontSize=14.sp,maxLines=1)
-            Text(it.description.orEmpty(),color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary,fontSize=11.sp,maxLines=if(compact) 1 else 2)
-        }}
-    }
 }
 @Composable
 private fun DiscoveryOverlay(onClose:()->Unit,back:Boolean=false,content:@Composable ()->Unit) {
@@ -452,7 +464,7 @@ private fun AdjacentMenu(onBack:()->Unit,content:@Composable ()->Unit) {
 }
 @Composable
 private fun ToolbarMenu(onClose:()->Unit,focusable:Boolean=true,content:@Composable ColumnScope.()->Unit) {
-    androidx.compose.ui.window.Popup(alignment=Alignment.TopStart,offset=androidx.compose.ui.unit.IntOffset(0,with(androidx.compose.ui.platform.LocalDensity.current){42.dp.roundToPx()}),
+    androidx.compose.ui.window.Popup(alignment=Alignment.TopStart,offset=androidx.compose.ui.unit.IntOffset(0,with(androidx.compose.ui.platform.LocalDensity.current){38.dp.roundToPx()}),
         onDismissRequest=onClose,properties=androidx.compose.ui.window.PopupProperties(focusable=focusable)) {
         Column(Modifier.width(190.dp).heightIn(max=320.dp).clip(RoundedCornerShape(8.dp)).background(panel)
             .verticalScroll(rememberScrollState()).padding(6.dp),verticalArrangement=Arrangement.spacedBy(2.dp),content=content)
@@ -466,11 +478,11 @@ private fun FilterEditor(kind:String,s:DiscoveryState,onChange:(DiscoveryFilters
     LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         when(kind) {
             "year" -> {
+                item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+                    (1950..2020 step 10).forEach { y -> Action("${y}s",{onChange(discoveryDecade(f,y))},f.yearFrom==y && f.yearTo==y+9) }
+                }}
                 item {NumericRange("שנה",f.yearFrom?.toString().orEmpty(),f.yearTo?.toString().orEmpty(),
                     {onChange(f.copy(yearFrom=it.toIntOrNull()))},{onChange(f.copy(yearTo=it.toIntOrNull()))})}
-                item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-                    (1950..2020 step 10).forEach { y -> Action("${y}s",{onChange(f.copy(yearFrom=y,yearTo=y+9))},f.yearFrom==y && f.yearTo==y+9) }
-                }}
                 item {Action("כל השנים",{onChange(f.copy(yearFrom=null,yearTo=null))})}
             }
             "score" -> {
@@ -515,6 +527,7 @@ private fun NumericRange(label:String,from:String,to:String,onFrom:(String)->Uni
 private fun Field(label:String,value:String,onChange:(String)->Unit,numeric:Boolean=false) {
     var editing by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(value) }
+    LaunchedEffect(value) {draft=value}
     OutlinedTextField(if(editing) draft else value,{ draft=it; onChange(it) },Modifier.fillMaxWidth().onFocusChanged {
         if(it.hasFocus && !editing) draft=value
         editing=it.hasFocus

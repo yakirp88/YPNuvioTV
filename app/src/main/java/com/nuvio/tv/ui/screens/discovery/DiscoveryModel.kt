@@ -30,7 +30,7 @@ data class DiscoveryFilters(
     }
 }
 data class DiscoveryChoice(val id: String, val name: String)
-enum class DiscoveryInfoPosition { TOP, MIDDLE, BOTTOM, EXPAND }
+enum class DiscoveryInfoPosition { TOP, SIDE }
 
 fun discoveryInfoPosition(value: String?) = DiscoveryInfoPosition.entries.firstOrNull { it.name == value } ?: DiscoveryInfoPosition.TOP
 fun discoveryExpansionDelay(value: String?) = value?.toIntOrNull()?.coerceIn(0,10) ?: 3
@@ -41,7 +41,7 @@ fun DiscoveryFilters.cycleGenre(id: Int): DiscoveryFilters = when(id) {
 }
 fun discoveryUsesServerFilters(catalogId: String?, addonId: String?, includeMissing: Boolean): Boolean =
     !includeMissing && (catalogId == null || addonId == "nuvio.tmdb" && catalogId != "trending")
-enum class DiscoveryView { POSTERS, LIST, CARDS, CLEAR_LOGO, LANDSCAPE, BANNERS;
+enum class DiscoveryView { POSTERS, CLEAR_LOGO, LANDSCAPE, BANNERS;
     fun next() = entries[(ordinal + 1) % entries.size]
 }
 
@@ -65,4 +65,32 @@ fun discoveryRuntimeMinutes(raw: String?): Int? {
     val minutes=Regex("(\\d+)\\s*m").find(value)?.groupValues?.get(1)?.toIntOrNull()
     if(hours!=null || minutes!=null) return (hours ?: 0)*60+(minutes ?: 0)
     return null
+}
+
+/** Legacy layouts become card styles inside the modern layout. */
+fun discoveryCardStyle(value: String?): DiscoveryView = when (value) {
+    "LIST" -> DiscoveryView.POSTERS
+    "CARDS" -> DiscoveryView.LANDSCAPE
+    else -> DiscoveryView.entries.firstOrNull { it.name == value } ?: DiscoveryView.POSTERS
+}
+
+fun discoveryColumns(style: DiscoveryView, size: Int, side: Boolean): Int {
+    val sizes = when {
+        style == DiscoveryView.POSTERS && side -> listOf(8, 7, 6, 5, 4)
+        style == DiscoveryView.POSTERS -> listOf(10, 8, 7, 6, 5)
+        side -> listOf(7, 6, 5, 4, 3)
+        else -> listOf(8, 7, 6, 5, 4)
+    }
+    return sizes[size.coerceIn(0, 4)]
+}
+
+/** Expanding one tile keeps every neighbor visible and at least 70% of its normal width. */
+fun discoveryExpandedWeight(columns: Int): Float = 1f + columns * (1f / .7f - 1f)
+
+fun discoveryDecade(filters: DiscoveryFilters, decade: Int): DiscoveryFilters =
+    filters.copy(yearFrom = decade, yearTo = decade + 9)
+
+/** SVG artwork is served at its original size; Coil already has the native SVG decoder. */
+fun discoveryLogoUrl(path: String?): String? = path?.takeIf { it.isNotBlank() }?.let {
+    if(it.startsWith("https://") || it.startsWith("http://")) it else "https://image.tmdb.org/t/p/original$it"
 }

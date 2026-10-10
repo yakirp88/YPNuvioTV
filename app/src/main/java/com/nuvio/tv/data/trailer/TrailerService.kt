@@ -324,7 +324,7 @@ class TrailerService(
         return try {
             val response = tmdbApi.getMovieVideos(
                 movieId = tmdbId,
-                apiKey = tmdbService.apiKey(),
+                apiKey = tmdbService.configuredApiKey(),
                 language = language
             )
             if (!response.isSuccessful) {
@@ -345,7 +345,7 @@ class TrailerService(
         return try {
             val response = tmdbApi.getTvVideos(
                 tvId = tmdbId,
-                apiKey = tmdbService.apiKey(),
+                apiKey = tmdbService.configuredApiKey(),
                 language = language
             )
             if (!response.isSuccessful) {

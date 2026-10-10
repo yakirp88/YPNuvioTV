@@ -337,7 +337,7 @@ private fun CatalogChip(
 }
 
 @Composable
-private fun DiscoverLocationRow(
+internal fun DiscoverLocationRow(
     selectedLocation: DiscoverLocation,
     rememberedLocation: DiscoverLocation,
     onLocationSelected: (DiscoverLocation) -> Unit

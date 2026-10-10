@@ -933,7 +933,6 @@ private fun ContentDiscoverySettingsContent(
     if(showDisplay) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(NuvioTheme.spacing.md)) {
             SettingsDetailHeader(title="תצוגת תוכן וגילוי",subtitle="שפות, מידע חסר ותצוגה")
-            SettingsActionRow(title="חזרה",subtitle=null,onClick={showDisplay=false})
             DiscoverySettingsContent()
         }
         return

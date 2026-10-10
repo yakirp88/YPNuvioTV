@@ -31,6 +31,8 @@ class DiscoverySettingsViewModel @Inject constructor(val preferences: DiscoveryP
     val languages=preferences.languages.stateIn(viewModelScope,SharingStarted.Eagerly,listOf("he","en","original"))
     val choices=MutableStateFlow(listOf(DiscoveryChoice("original","שפת המקור"),DiscoveryChoice("he","Hebrew"),DiscoveryChoice("en","English")))
     val position=preferences.infoPosition.stateIn(viewModelScope,SharingStarted.Eagerly,com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.TOP)
+    val expandCards=preferences.expandCards.stateIn(viewModelScope,SharingStarted.Eagerly,true)
+    fun expandCards(){viewModelScope.launch{preferences.setExpandCards(!expandCards.value)}}
     val expansionDelay=preferences.expansionDelay.stateIn(viewModelScope,SharingStarted.Eagerly,3)
     fun position(value:com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition){viewModelScope.launch{preferences.setInfoPosition(value)}}
     fun expansionDelay(value:Int){viewModelScope.launch{preferences.setExpansionDelay(value)}}
@@ -46,11 +48,13 @@ class DiscoverySettingsViewModel @Inject constructor(val preferences: DiscoveryP
 }
 
 @Composable
-internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = null, vm:DiscoverySettingsViewModel=hiltViewModel()) {
+internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = null, vm:DiscoverySettingsViewModel=hiltViewModel(), layoutVm:LayoutSettingsViewModel=hiltViewModel()) {
     val position by vm.position.collectAsState()
     val expansionDelay by vm.expansionDelay.collectAsState()
     var selectingPosition by remember { mutableStateOf(false) }
-    val positions=listOf("למעלה","באמצע","למטה","הרחבת תמונת הכותר")
+    val positions=listOf("מודרני — למעלה","מודרני — צד")
+    val expandCards by vm.expandCards.collectAsState()
+    val layout by layoutVm.uiState.collectAsState()
     val missing by vm.missing.collectAsState()
     val languages by vm.languages.collectAsState()
     val choices by vm.choices.collectAsState()
@@ -59,11 +63,13 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
     Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         SettingsToggleRow("כלול כותרים עם מידע חסר","חל כאשר חסר נתון שנדרש לפילטר פעיל",missing,vm::missing,
             modifier=initialFocusRequester?.let{Modifier.focusRequester(it)} ?: Modifier)
-        SettingsActionRow(title="מיקום מידע הכותר",subtitle="מיקום קבוע למידע של הכותר שנבחר",value=positions[position.ordinal],onClick={selectingPosition=!selectingPosition})
+        DiscoverLocationRow(layout.discoverLocation,layout.lastNonOffDiscoverLocation) {layoutVm.onEvent(LayoutSettingsEvent.SetDiscoverLocation(it))}
+        SettingsActionRow(title="מבנה תצוגת תוכן וגילוי",subtitle="מידע קבוע למעלה או בשליש השמאלי של המסך",value=positions[position.ordinal],onClick={selectingPosition=!selectingPosition})
         if(selectingPosition) com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.entries.forEach { option ->
             Action(positions[option.ordinal],{vm.position(option);selectingPosition=false},position==option)
         }
-        if(position==com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.EXPAND) SliderSettingsItem(
+        SettingsToggleRow("הרחבת תמונת הכותר","הרחבת הכרטיס המסומן לאחר השהיה, בלי להסתיר את שאר השורה",expandCards,vm::expandCards)
+        if(expandCards) SliderSettingsItem(
             title="השהיה לפני הרחבת תמונת הכותר",subtitle="0 שניות — הרחבה מיידית",value=expansionDelay,valueText="${expansionDelay}s",minValue=0,maxValue=10,step=1,onValueChange=vm::expansionDelay)
         languages.forEachIndexed{index,value ->
             SettingsActionRow(title=listOf("שפה ראשית","שפה משנית","שפה שלישית")[index],subtitle="שפת שמות התוכן · עדיפות ${index+1}",

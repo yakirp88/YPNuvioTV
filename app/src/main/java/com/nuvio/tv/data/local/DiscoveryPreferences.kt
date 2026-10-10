@@ -29,6 +29,8 @@ class DiscoveryPreferences internal constructor(private val factory: ProfileData
     suspend fun tmdbKey(): String? = profilePreferences.first { it.first == profiles.activeProfileId.value }
         .second[stringPreferencesKey("tmdb_key")]?.takeIf { it.isNotBlank() }
     val infoPosition = preferences.map { com.nuvio.tv.ui.screens.discovery.discoveryInfoPosition(it[stringPreferencesKey("info_position")]) }
+    val expandCards = preferences.map { it[booleanPreferencesKey("expand_cards")] ?: true }
+    suspend fun setExpandCards(value: Boolean) { store().edit { it[booleanPreferencesKey("expand_cards")] = value } }
     val expansionDelay = preferences.map { com.nuvio.tv.ui.screens.discovery.discoveryExpansionDelay(it[stringPreferencesKey("expansion_delay")]) }
     suspend fun setInfoPosition(value: com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition) = save("info_position",value.name)
     suspend fun setExpansionDelay(value: Int) = save("expansion_delay",value.coerceIn(0,10).toString())

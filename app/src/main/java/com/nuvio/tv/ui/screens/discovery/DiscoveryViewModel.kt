@@ -34,6 +34,9 @@ data class DiscoveryState(
     val loading: Boolean = false, val hasMore: Boolean = true, val error: String? = null,
     val includeMissing: Boolean = false, val titleLanguages: List<String> = listOf("he", "en", "original"),
     val infoPosition: DiscoveryInfoPosition = DiscoveryInfoPosition.TOP, val expansionDelay: Int = 3,
+    val expandCards: Boolean = true, val heroPreview: MetaPreview? = null,
+    val trailerTitle: String? = null, val trailerSource: com.nuvio.tv.data.trailer.TrailerPlaybackSource? = null,
+    val trailerLoading: Boolean = false, val trailerError: String? = null, val actionTrailerAvailable: Boolean? = null,
     val sourceLabel: String? = null,
     val localScope: Boolean = false, val page: Int = 0, val focusedId: String? = null
 )
@@ -48,12 +51,17 @@ class DiscoveryViewModel @Inject constructor(
     val preferences: DiscoveryPreferences,
     private val progress: WatchProgressRepository, private val watchedSeries: WatchedSeriesStateHolder,
     private val library: LibraryRepository,
+    private val metaRepository: MetaRepository,
+    private val trailerService: com.nuvio.tv.data.trailer.TrailerService,
     val posterOptions: com.nuvio.tv.ui.components.posteroptions.PosterOptionsController
 ) : ViewModel() {
     private val mutable = MutableStateFlow(DiscoveryState())
     val state = mutable.asStateFlow()
     private var request: Job? = null
     private var suggestions: Job? = null
+    private var heroJob: Job? = null
+    private var trailerJob: Job? = null
+    private var actionJob: Job? = null
     private var exportJob: Job? = null
     private val enrichmentJobs = mutableListOf<Job>()
     private var configuration: Job? = null
@@ -90,7 +98,7 @@ class DiscoveryViewModel @Inject constructor(
                 val missing = p[androidx.datastore.preferences.core.booleanPreferencesKey("include_missing")] ?: false
                 val reload = !prefsReady || s.titleLanguages != langs || s.includeMissing != missing || prefsSnapshot?.get(stringPreferencesKey("tmdb_key")) != p[stringPreferencesKey("tmdb_key")]
                 prefsSnapshot = p
-                mutable.update { it.copy(includeMissing = missing, titleLanguages = langs, infoPosition=discoveryInfoPosition(p[stringPreferencesKey("info_position")]), expansionDelay=discoveryExpansionDelay(p[stringPreferencesKey("expansion_delay")])) }
+                mutable.update { it.copy(includeMissing = missing, titleLanguages = langs, infoPosition=discoveryInfoPosition(p[stringPreferencesKey("info_position")]), expansionDelay=discoveryExpansionDelay(p[stringPreferencesKey("expansion_delay")]), expandCards=p[androidx.datastore.preferences.core.booleanPreferencesKey("expand_cards")] ?: true)) }
                 if (!prefsReady) { restoreDisplay(); prefsReady = true }
                 if (reload) { refreshConfiguration();load(reset = true) }
             }
@@ -136,15 +144,15 @@ class DiscoveryViewModel @Inject constructor(
     private fun restoreDisplay() {
         val p = prefsSnapshot ?: return
         val kind = if (mutable.value.movie) "movie" else "series"
-        val view = runCatching { DiscoveryView.valueOf(p[stringPreferencesKey("${kind}_view")] ?: "POSTERS") }.getOrDefault(DiscoveryView.POSTERS)
+        val view = discoveryCardStyle(p[stringPreferencesKey("${kind}_view")])
         val sort = runCatching { DiscoverySort.valueOf(p[stringPreferencesKey("${kind}_sort")] ?: "POPULARITY") }.getOrDefault(DiscoverySort.POPULARITY)
-        val size = p[stringPreferencesKey("${kind}_${view.name}_size")]?.toIntOrNull()?.coerceIn(0, 2) ?: 1
+        val size = p[stringPreferencesKey("${kind}_${view.name}_size")]?.toIntOrNull()?.coerceIn(0, 4) ?: 2
         val desc = p[stringPreferencesKey("${kind}_descending")] != "false"
         mutable.update { it.copy(view = view, sort = sort, size = size, descending = desc) }
     }
     fun cycleView() {
         val s = mutable.value; val v = s.view.next(); val kind = if (s.movie) "movie" else "series"
-        val size = prefsSnapshot?.get(stringPreferencesKey("${kind}_${v.name}_size"))?.toIntOrNull()?.coerceIn(0,2) ?: 1
+        val size = prefsSnapshot?.get(stringPreferencesKey("${kind}_${v.name}_size"))?.toIntOrNull()?.coerceIn(0,4) ?: 2
         mutable.update { it.copy(view = v, size = size) }
         viewModelScope.launch { preferences.save("${kind}_view", v.name) }
         if(v==DiscoveryView.CLEAR_LOGO) refreshLogos()
@@ -160,7 +168,7 @@ class DiscoveryViewModel @Inject constructor(
         }
     }
     fun cycleSize() {
-        val s = mutable.value; val size = (s.size + 1) % 3
+        val s = mutable.value; val size = (s.size + 1) % 5
         mutable.update { it.copy(size = size) }
         viewModelScope.launch { preferences.save("${if(s.movie) "movie" else "series"}_${s.view.name}_size", size.toString()) }
     }
@@ -175,7 +183,66 @@ class DiscoveryViewModel @Inject constructor(
     }
     fun reset() { relatedSource=false;previous=null;mutable.update { it.copy(catalog = null, filters = DiscoveryFilters(), query = "", focusedId = null, sourceLabel=null, items = emptyList(), visible = emptyList()) }; load(true) }
     fun text(value: String) { mutable.update { it.copy(query = value) }; render() }
-    fun focus(id: String) { mutable.update { it.copy(focusedId = id) } }
+    fun focus(id: String, refreshHero: Boolean = false) {
+        if(mutable.value.focusedId == id && !refreshHero) return
+        mutable.update { it.copy(focusedId = id, heroPreview = null) }
+        heroJob?.cancel()
+        val token=generation
+        heroJob=viewModelScope.launch {
+            delay(450)
+            val entry=mutable.value.visible.firstOrNull {it.preview.id==id} ?: return@launch
+            val p=entry.preview
+            val imdb=p.imdbId ?: p.id.takeIf {it.startsWith("tt")}
+            if(imdb==null) return@launch
+            try {
+                val meta=metaRepository.getCachedMeta(p.apiType,imdb) ?: withTimeoutOrNull(8000) {
+                    val result=metaRepository.getMetaFromAllAddons(p.apiType,imdb,p.sourceAddonBaseUrl)
+                        .first {it !is NetworkResult.Loading}
+                    (result as? NetworkResult.Success)?.data
+                } ?: return@launch
+                if(token==generation && mutable.value.focusedId==id) mutable.update {it.copy(heroPreview=p.copy(
+                    logo=p.logo ?: meta.logo,background=p.background ?: meta.background,
+                    imdbRating=meta.imdbRating,ageRating=p.ageRating ?: meta.ageRating,
+                    runtime=p.runtime ?: meta.runtime,trailerYtIds=meta.trailerYtIds))}
+            } catch(e:CancellationException){throw e} catch(_:Exception){}
+        }
+        if(mutable.value.view==DiscoveryView.CLEAR_LOGO) refreshLogos()
+    }
+    fun prepareActions(p:MetaPreview) {
+        actionJob?.cancel()
+        mutable.update {it.copy(actionTrailerAvailable=null)}
+        actionJob=viewModelScope.launch {
+            if(p.trailerYtIds.isNotEmpty()){mutable.update {it.copy(actionTrailerAvailable=true)};return@launch}
+            try {
+                val id=tmdb.ensureTmdbId(p.id,p.apiType,p.imdbId)?.toIntOrNull() ?: return@launch
+                val movie=p.apiType=="movie"
+                var found=false
+                var complete=true
+                val languages=(mutable.value.titleLanguages.filter {it!="original"} + listOfNotNull(p.language,"en-US")).distinct()
+                for(language in languages) {
+                    val response=if(movie) api.getMovieVideos(id,apiKey(),language) else api.getTvVideos(id,apiKey(),language)
+                    complete=complete && response.isSuccessful
+                    if(response.body()?.results.orEmpty().any {v->v.site=="YouTube" && (v.type=="Trailer" || v.type=="Teaser")}) {found=true;break}
+                }
+                if(found || complete) mutable.update {it.copy(actionTrailerAvailable=found)}
+            } catch(e:CancellationException){throw e} catch(_:Exception){}
+        }
+    }
+    fun playTrailer(p:MetaPreview) {
+        trailerJob?.cancel()
+        mutable.update {it.copy(trailerTitle=p.name,trailerSource=null,trailerLoading=true,trailerError=null)}
+        trailerJob=viewModelScope.launch {
+            try {
+                // Explicit playback uses the same extractor/player as native Nuvio.
+                val id=tmdb.ensureTmdbId(p.id,p.apiType,p.imdbId)
+                val source=p.trailerYtIds.firstOrNull()?.let {
+                    trailerService.getTrailerPlaybackSourceFromYouTubeUrl("https://www.youtube.com/watch?v=$it",p.name,p.releaseInfo)
+                } ?: trailerService.getTrailerPlaybackSourceFromTmdbId(id,p.apiType,p.name,p.releaseInfo)
+                mutable.update {it.copy(trailerSource=source,trailerLoading=false,trailerError=if(source==null) "לא נמצא טריילר זמין לכותר הזה" else null)}
+            } catch(e:CancellationException){throw e} catch(_:Exception){mutable.update {it.copy(trailerLoading=false,trailerError="לא ניתן לטעון טריילר. נסה שוב")}}
+        }
+    }
+    fun closeTrailer(){trailerJob?.cancel();mutable.update {it.copy(trailerTitle=null,trailerSource=null,trailerLoading=false,trailerError=null)}}
     fun filter(f: DiscoveryFilters) {
         if (f.yearFrom != null && f.yearTo != null && f.yearFrom > f.yearTo ||
             f.scoreFrom != null && f.scoreTo != null && f.scoreFrom > f.scoreTo ||
@@ -422,7 +489,7 @@ class DiscoveryViewModel @Inject constructor(
             val id = p.id.removePrefix("tmdb:").toIntOrNull() ?: api.findByExternalId(p.imdbId ?: p.id,apiKey()).body()?.let { if(s.movie) it.movieResults?.firstOrNull()?.id else it.tvResults?.firstOrNull()?.id }
                 ?: return DiscoveryItem(p)
             val append = buildList { add("translations"); add("images"); add("external_ids")
-                if(s.filters.certification != null) add("release_dates")
+                if(s.movie) add("release_dates")
                 if(s.filters.actors.isNotEmpty() && s.movie) add("credits")
                 if(s.filters.keyword != null) add("keywords") }.joinToString(",")
             val details = api.discoveryDetails(if(s.movie) "movie" else "tv",id,apiKey(),s.titleLanguages.firstOrNull { it != "original" },append,
@@ -434,8 +501,8 @@ class DiscoveryViewModel @Inject constructor(
                 if(lang == "original") original else translations.firstOrNull { it.language == lang && !(it.data.title ?: it.data.name).isNullOrBlank() }?.data?.let { it.title ?: it.name }.orEmpty()
             }
             val searchNames = translations.filter { it.language in listOf("he", "en") }.mapNotNull { it.data.title ?: it.data.name }
-            val logoLanguages = (s.titleLanguages.map { if(it == "original") d.originalLanguage else it }.filterNotNull().filter(String::isNotBlank) + "null").distinct().joinToString(",")
-            val imageData = if(s.view==DiscoveryView.CLEAR_LOGO && d.images?.logos.isNullOrEmpty()) {
+            val logoLanguages = (s.titleLanguages.map { if(it == "original") d.originalLanguage else it }.filterNotNull().filter(String::isNotBlank) + listOf("en","null")).distinct().joinToString(",")
+            val imageData = if(d.images?.logos.isNullOrEmpty()) {
                 // Some append responses omit artwork. Reuse the original image endpoint
                 // with the original language, English and language-neutral fallbacks.
                 try { if(s.movie) api.getMovieImages(id,apiKey(),logoLanguages).body() else api.getTvImages(id,apiKey(),logoLanguages).body() }
@@ -447,7 +514,7 @@ class DiscoveryViewModel @Inject constructor(
             val imdb = p.imdbId ?: d.externalIds?.imdbId
             val item = DiscoveryItem(p.copy(imdbId=imdb,name=names.firstOrNull(String::isNotBlank) ?: original,
                 poster=image(d.posterPath) ?: p.poster,background=image(d.backdropPath) ?: p.background,
-                logo=imageData?.logos?.let { logos -> (s.titleLanguages.map { if(it=="original") d.originalLanguage else it } + listOf(null)).firstNotNullOfOrNull { lang -> logos.firstOrNull { it.iso6391==lang }?.filePath } ?: logos.firstOrNull { !it.filePath.isNullOrBlank() }?.filePath }?.let { "https://image.tmdb.org/t/p/w500$it" } ?: p.logo,
+                logo=imageData?.logos?.let { logos -> (s.titleLanguages.map { if(it=="original") d.originalLanguage else it } + listOf(null)).firstNotNullOfOrNull { lang -> logos.firstOrNull { it.iso6391==lang }?.filePath } ?: logos.firstOrNull { !it.filePath.isNullOrBlank() }?.filePath }?.let(::discoveryLogoUrl) ?: p.logo,
                 imdbRating=d.voteAverage?.toFloat() ?: p.imdbRating,description=d.overview ?: p.description,genres=d.genres.orEmpty().map { it.name },runtime=(d.runtime ?: d.episodeRunTime?.firstOrNull())?.toString(),
                 released=d.releaseDate ?: d.firstAirDate ?: p.released,releaseInfo=(d.releaseDate ?: d.firstAirDate)?.take(4) ?: p.releaseInfo,language=d.originalLanguage,status=d.status,ageRating=age,country=(d.originCountry.orEmpty()+d.productionCountries.orEmpty().mapNotNull { it.iso31661 }).distinct().takeIf { it.isNotEmpty() }?.joinToString(),voteCount=d.voteCount ?: p.voteCount),
                 (names + searchNames + original + p.name).filter(String::isNotBlank).distinct(),
