@@ -98,7 +98,13 @@ class DiscoveryViewModel @Inject constructor(
                 val missing = p[androidx.datastore.preferences.core.booleanPreferencesKey("include_missing")] ?: false
                 val reload = !prefsReady || s.titleLanguages != langs || s.includeMissing != missing || prefsSnapshot?.get(stringPreferencesKey("tmdb_key")) != p[stringPreferencesKey("tmdb_key")]
                 prefsSnapshot = p
-                mutable.update { it.copy(includeMissing = missing, titleLanguages = langs, infoPosition=discoveryInfoPosition(p[stringPreferencesKey("info_position")]), expansionDelay=discoveryExpansionDelay(p[stringPreferencesKey("expansion_delay")]), expandCards=p[androidx.datastore.preferences.core.booleanPreferencesKey("expand_cards")] ?: true)) }
+                mutable.update { it.copy(
+                    includeMissing = missing,
+                    titleLanguages = langs,
+                    infoPosition = discoveryInfoPosition(p[stringPreferencesKey("info_position")]),
+                    expansionDelay = discoveryExpansionDelay(p[stringPreferencesKey("expansion_delay")]),
+                    expandCards = p[androidx.datastore.preferences.core.booleanPreferencesKey("expand_cards")] ?: true
+                ) }
                 if (!prefsReady) { restoreDisplay(); prefsReady = true }
                 if (reload) { refreshConfiguration();load(reset = true) }
             }

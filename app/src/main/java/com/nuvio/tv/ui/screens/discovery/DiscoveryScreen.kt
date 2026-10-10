@@ -191,12 +191,12 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                         } else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                             val gap=8.dp
                             val normalWidth=(maxWidth-gap*(columns-1))/columns
-                            val cardHeight=when(s.view) {
+                            val cardHeight=(when(s.view) {
                                 DiscoveryView.POSTERS -> normalWidth*1.5f
                                 DiscoveryView.CLEAR_LOGO -> normalWidth*.45f
                                 DiscoveryView.BANNERS -> normalWidth/3.2f
                                 DiscoveryView.LANDSCAPE -> normalWidth*9f/16f
-                            }
+                            }).coerceAtMost(maxHeight)
                             // Keys and row composition stay stable during expansion. Only weights animate.
                             LazyColumn(state=grid,modifier=Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(gap)) {
                                 items(s.visible.chunked(columns),key={row->row.first().preview.id}) {row ->
@@ -328,7 +328,7 @@ private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:
             else Text(p.name,Modifier.padding(8.dp),color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary,fontSize=13.sp,maxLines=2)
         } else {
             AsyncImage(if(expanded) p.background ?: p.landscapePoster ?: p.poster else if(view==DiscoveryView.POSTERS) p.poster else p.landscapePoster ?: p.background ?: p.poster,
-                p.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+                p.name,Modifier.fillMaxSize(),contentScale=if(view==DiscoveryView.POSTERS && !expanded) ContentScale.Fit else ContentScale.Crop)
             if(view!=DiscoveryView.POSTERS || expanded) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.65f))))
                 .padding(6.dp),contentAlignment=Alignment.Center) {
