@@ -478,6 +478,7 @@ class TmdbCollectionSourceResolver @Inject constructor(
 
     private fun TmdbCollectionSource.key(): String {
         return buildString {
+            snapshotId?.let { append("snapshot_"); append(it); return@buildString }
             append("tmdb_")
             append(sourceType.name.lowercase(Locale.US))
             tmdbId?.let {

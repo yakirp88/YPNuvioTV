@@ -1185,6 +1185,7 @@ class FolderDetailViewModel @Inject constructor(
 
     private fun buildTmdbSourceKey(source: TmdbCollectionSource): String {
         return buildString {
+            source.snapshotId?.let { append("snapshot_"); append(it); return@buildString }
             append("tmdb_")
             append(source.sourceType.name.lowercase(java.util.Locale.US))
             source.tmdbId?.let {

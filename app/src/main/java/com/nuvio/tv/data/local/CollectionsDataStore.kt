@@ -27,6 +27,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,6 +58,7 @@ class CollectionsDataStore @Inject constructor(
         factory.get(profileId, FEATURE)
 
     private val gson = Gson()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val collectionsKey = stringPreferencesKey("collections_json")
     private fun string(resId: Int, vararg args: Any): String = appContext.getString(resId, *args)
 
@@ -60,7 +67,7 @@ class CollectionsDataStore @Inject constructor(
             factory.get(pid, FEATURE).data.map { prefs ->
                 parseCollections(prefs[collectionsKey])
             }
-        }
+        }.flowOn(Dispatchers.IO).shareIn(scope, SharingStarted.Lazily, replay = 1)
 
     suspend fun setCollections(collections: List<Collection>) {
         store().edit { prefs ->
@@ -240,6 +247,7 @@ class CollectionsDataStore @Inject constructor(
         val sortBy: String? = null,
         val sortHow: String? = null,
         val snapshot: List<com.nuvio.tv.domain.model.SavedDiscoveryItem>? = null,
+        val snapshotId: String? = null,
         val filters: SerializableTmdbFilters? = null
     )
 
@@ -323,7 +331,7 @@ class CollectionsDataStore @Inject constructor(
                 tmdbId = tmdbId,
                 mediaType = mediaType.name,
                 sortBy = sortBy,
-                snapshot = snapshot,
+                snapshot = snapshot, snapshotId = snapshotId,
                 filters = filters.toSerializable()
             )
             is TraktCollectionSource -> SerializableSource(
@@ -415,7 +423,7 @@ class CollectionsDataStore @Inject constructor(
                         runCatching { TmdbCollectionMediaType.valueOf(raw.uppercase()) }.getOrNull()
                     } ?: TmdbCollectionMediaType.MOVIE,
                     sortBy = normalizedSortBy,
-                    snapshot = snapshot,
+                    snapshot = snapshot, snapshotId = snapshotId,
                     filters = filters?.toDomain() ?: TmdbCollectionFilters()
                 )
             }

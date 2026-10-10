@@ -44,7 +44,7 @@ class DiscoveryViewModel @Inject constructor(
     private val collectionsStore: com.nuvio.tv.data.local.CollectionsDataStore,
     private val tmdbCollections: com.nuvio.tv.core.tmdb.TmdbCollectionSourceResolver,
     private val traktCollections: com.nuvio.tv.core.trakt.TraktPublicListSourceResolver,
-    private val metadata: MetaRepository, val preferences: DiscoveryPreferences,
+    val preferences: DiscoveryPreferences,
     private val progress: WatchProgressRepository, private val watchedSeries: WatchedSeriesStateHolder,
     private val library: LibraryRepository,
     val posterOptions: com.nuvio.tv.ui.components.posteroptions.PosterOptionsController
@@ -268,7 +268,7 @@ class DiscoveryViewModel @Inject constructor(
         request?.cancel()
         if(reset) { generation++; enrichmentJobs.forEach { it.cancel() }; enrichmentJobs.clear() }
         val token = generation
-        mutable.update { it.copy(loading = true, error = null, items = it.items, visible = it.visible) }
+        mutable.update { it.copy(loading = true, metadataPending=if(reset) 0 else it.metadataPending, error = null) }
         request = viewModelScope.launch {
             if(debounce) delay(180)
             val s = mutable.value
@@ -375,8 +375,11 @@ class DiscoveryViewModel @Inject constructor(
                             else fetchPage(snapshot,page,offset,page==1)
                         if(data.limited) error("יותר מ־500 עמודים: יש לצמצם את הסינון כדי לשמור קטלוג מלא")
                         val trusted=snapshot.catalog==null && !snapshot.includeMissing && !related
-                        val items=if(related) snapshot.items else if(trusted && snapshot.query.isBlank() && snapshot.filters.watched==null)
-                            data.raw.map { DiscoveryItem(it,serverMatched=true) }
+                        val f=snapshot.filters
+                        val extra=snapshot.query.isNotBlank() || f.watched!=null || f.genres.isNotEmpty() || f.excludedGenres.isNotEmpty() ||
+                            f.company!=null || f.country!=null || f.language!=null || f.certification!=null || f.keyword!=null || f.actors.isNotEmpty() || f.status!=null
+                        val items=if(related) snapshot.items else if((trusted && snapshot.query.isBlank() && f.watched==null) || !extra)
+                            data.raw.map { DiscoveryItem(it,serverMatched=trusted) }
                         else coroutineScope { data.raw.map { p -> async { pool.withPermit { enrich(p,snapshot,strict=true).copy(serverMatched=trusted) } } }.awaitAll() }
                         filteredState(snapshot.copy(items=items)).visible.forEach { output[it.preview.id]=it.preview }
                         withContext(Dispatchers.Main) { mutable.update { it.copy(exportMessage="עמוד $page · ${output.size} כותרים") } }
@@ -388,7 +391,7 @@ class DiscoveryViewModel @Inject constructor(
                 }
                 ensureActive()
                 if(activeProfile!=profile) error("הפרופיל השתנה; הייצוא בוטל")
-                val source=TmdbCollectionSource(TmdbCollectionSourceType.DISCOVER,name.trim(),mediaType=if(snapshot.movie) TmdbCollectionMediaType.MOVIE else TmdbCollectionMediaType.TV,snapshot=saved)
+                val source=TmdbCollectionSource(TmdbCollectionSourceType.DISCOVER,name.trim(),mediaType=if(snapshot.movie) TmdbCollectionMediaType.MOVIE else TmdbCollectionMediaType.TV,snapshot=saved,snapshotId=collectionsStore.generateId())
                 val collection=com.nuvio.tv.domain.model.Collection(collectionsStore.generateId(),name.trim(),pinToTop=true,
                     folders=listOf(CollectionFolder(collectionsStore.generateId(),name.trim(),coverImageUrl=saved.firstOrNull()?.poster,sources=listOf(source))))
                 withContext(Dispatchers.IO) { collectionsStore.addCollection(collection,profile) }

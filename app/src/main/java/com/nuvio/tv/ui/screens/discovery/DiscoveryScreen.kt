@@ -143,7 +143,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
             Spacer(Modifier.weight(1f))
             ContentSwitch(s.movie) { viewModel.selectType(!s.movie); showText=false; hint="הפילטרים והקטלוג אופסו" }
         }
-        Box(Modifier.height(18.dp)) { hint?.let { Text(it,color=accent,fontSize=12.sp) } }
+        Box(Modifier.height(30.dp)) { hint?.let { Text(it,color=accent,fontSize=12.sp) } }
         if(showText) Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(s.query, viewModel::text, Modifier.weight(1f).focusRequester(textFocus),singleLine=true,textStyle=androidx.compose.ui.text.TextStyle(color=Color.White),label={ Text("סינון בתוצאות שנטענו",color=Color.LightGray) })
             Action("×", { viewModel.text("") })
@@ -230,8 +230,8 @@ private fun RoundControl(icon: ImageVector,label: String,active: Boolean=false,m
             .onFocusChanged { focused=it.isFocused }.clickable(onClick=onClick).semantics { contentDescription=label; if(active) stateDescription="פעיל" },contentAlignment=Alignment.Center) {
             Icon(icon,label,Modifier.size(17.dp),tint=if(active || focused) accent else Color.White)
         }
-        if(focused) androidx.compose.ui.window.Popup(alignment=Alignment.BottomCenter,
-            offset=androidx.compose.ui.unit.IntOffset(0,46)) {
+        if(focused) androidx.compose.ui.window.Popup(alignment=Alignment.TopCenter,
+            offset=androidx.compose.ui.unit.IntOffset(0,with(androidx.compose.ui.platform.LocalDensity.current){42.dp.roundToPx()})) {
             Text(label,Modifier.background(panel,RoundedCornerShape(6.dp)).padding(5.dp),color=Color.White,fontSize=11.sp)
         }
     }
@@ -353,7 +353,7 @@ private fun filterKinds(movie:Boolean) = buildList {
 }
 @Composable
 private fun ToolbarMenu(onClose:()->Unit,content:@Composable ColumnScope.()->Unit) {
-    androidx.compose.ui.window.Popup(alignment=Alignment.TopStart,offset=androidx.compose.ui.unit.IntOffset(0,60),
+    androidx.compose.ui.window.Popup(alignment=Alignment.TopStart,offset=androidx.compose.ui.unit.IntOffset(0,with(androidx.compose.ui.platform.LocalDensity.current){42.dp.roundToPx()}),
         onDismissRequest=onClose,properties=androidx.compose.ui.window.PopupProperties(focusable=true)) {
         Column(Modifier.width(220.dp).heightIn(max=360.dp).clip(RoundedCornerShape(12.dp)).background(panel)
             .verticalScroll(rememberScrollState()).padding(10.dp),verticalArrangement=Arrangement.spacedBy(5.dp),content=content)

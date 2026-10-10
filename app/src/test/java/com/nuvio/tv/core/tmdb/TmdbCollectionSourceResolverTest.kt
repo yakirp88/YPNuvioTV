@@ -44,6 +44,8 @@ class TmdbCollectionSourceResolverTest {
         assertEquals(5,second.data.items.size)
         assertEquals("tmdb:41",second.data.items.first().id)
         assertFalse(second.data.hasMore)
+        val other=resolver.resolve(source.copy(snapshotId="other"),1).first { it !is NetworkResult.Loading } as NetworkResult.Success
+        assertFalse(first.data.catalogId==other.data.catalogId)
         io.mockk.verify { api wasNot io.mockk.Called }
     }
     private val context = mockk<Context>(relaxed = true)

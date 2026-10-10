@@ -18,12 +18,13 @@ import org.junit.Test
 class CollectionsDataStoreSourceMigrationTest {
     @Test fun `saved discovery items survive collection export and import`() {
         val saved = com.nuvio.tv.domain.model.SavedDiscoveryItem("tmdb:1","movie","כותר בעברית",null,null,null,"תקציר",null,"2026",8f,emptyList(),"tt1","https://addon.example",null,42)
-        val source=TmdbCollectionSource(TmdbCollectionSourceType.DISCOVER,"Saved",snapshot=listOf(saved))
+        val source=TmdbCollectionSource(TmdbCollectionSourceType.DISCOVER,"Saved",snapshot=listOf(saved),snapshotId="unique-snapshot")
         val collection=com.nuvio.tv.domain.model.Collection("id","Saved",pinToTop=true,
             folders=listOf(com.nuvio.tv.domain.model.CollectionFolder("folder","Saved",sources=listOf(source))))
         val restored=store.importFromJson(store.exportToJson(listOf(collection))).single()
         assertTrue(restored.pinToTop)
         assertEquals(listOf(saved),(restored.folders.single().sources.single() as TmdbCollectionSource).snapshot)
+        assertEquals("unique-snapshot",(restored.folders.single().sources.single() as TmdbCollectionSource).snapshotId)
     }
     private val context = mockk<Context>(relaxed = true)
     private val store = CollectionsDataStore(
