@@ -59,7 +59,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     val s by viewModel.state.collectAsState()
     var overlay by rememberSaveable { mutableStateOf<String?>(null) }
     var lastFilter by rememberSaveable { mutableStateOf("year") }
-    var gridHasFocus by remember { mutableStateOf(false) }
+    var gridFocusedId by remember { mutableStateOf<String?>(null) }
     var expandedId by remember { mutableStateOf<String?>(null) }
     var showText by rememberSaveable { mutableStateOf(false) }
     var actionItem by remember { mutableStateOf<MetaPreview?>(null) }
@@ -113,9 +113,9 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     }
     BackHandler(s.sourceLabel != null && !showText && overlay == null) { viewModel.restoreSource() }
     BackHandler(showText && overlay == null) { showText = false; firstToolbar.requestFocus() }
-    LaunchedEffect(s.focusedId,s.infoPosition,s.expansionDelay,gridHasFocus) {
+    LaunchedEffect(s.focusedId,s.infoPosition,s.expansionDelay,gridFocusedId) {
         expandedId=null
-        if(s.infoPosition==DiscoveryInfoPosition.EXPAND && gridHasFocus && s.focusedId!=null) {
+        if(s.infoPosition==DiscoveryInfoPosition.EXPAND && gridFocusedId==s.focusedId && s.focusedId!=null) {
             delay(s.expansionDelay*1000L);expandedId=s.focusedId
         }
     }
@@ -200,7 +200,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                         val r = remember(entry.preview.id) { FocusRequester() }
                         DisposableEffect(entry.preview.id) { requesters[entry.preview.id]=r; onDispose { requesters.remove(entry.preview.id) } }
                         DiscoveryTile(entry.preview,s.view,s.size,Modifier.focusRequester(r),expanded=expandedId==entry.preview.id,
-                            onFocus={viewModel.focus(entry.preview.id)},onFocusState={gridHasFocus=it},
+                            onFocus={viewModel.focus(entry.preview.id)},onFocusState={hasFocus -> if(hasFocus) gridFocusedId=entry.preview.id else if(gridFocusedId==entry.preview.id) gridFocusedId=null},
                             onClick={navigate(entry.preview)},onHold={actionItem=entry.preview;overlay="actions"})
                     }
                     if(middle && (index==((selectedRow+1)*columns-1).coerceAtMost(s.visible.lastIndex))) {
