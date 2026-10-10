@@ -28,13 +28,14 @@ jobs:
       - name: Build and test
         run: >
           ./gradlew -Pkotlin.compiler.execution.strategy=in-process
-          -Pkotlin.incremental=false -Pdebuggable=true
+          -Pkotlin.incremental=false -Pdebuggable=false
           "-Dorg.gradle.jvmargs=-Xmx5120m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
           :app:testFullDebugUnitTest
           --tests "com.nuvio.tv.ui.screens.discovery.DiscoveryPolicyTest"
           --tests "com.nuvio.tv.core.tmdb.TmdbCollectionSourceResolverTest"
           --tests "com.nuvio.tv.core.tmdb.TmdbMetadataServiceTest"
           --tests "com.nuvio.tv.data.introdb.*"
+          --tests "com.nuvio.tv.data.local.DiscoveryPreferencesTest"
           :app:assembleFullDebug --no-daemon --max-workers=1
       - name: Name universal APK
         run: cp app/build/outputs/apk/full/debug/app-full-universal-debug.apk Nuvio-content-discovery.apk

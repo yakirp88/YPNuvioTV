@@ -8,7 +8,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -284,7 +283,7 @@ class TmdbService @Inject constructor(
 
     fun apiKey(): String = BuildConfig.TMDB_API_KEY
 
-    suspend fun configuredApiKey(): String = discoveryPreferences?.preferences?.first()?.get(androidx.datastore.preferences.core.stringPreferencesKey("tmdb_key"))?.takeIf { it.isNotBlank() } ?: apiKey()
+    suspend fun configuredApiKey(): String = discoveryPreferences?.tmdbKey() ?: apiKey()
 
     /**
      * Fetches backdrop and poster URLs from TMDB for the given IMDB ID.

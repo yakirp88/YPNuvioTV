@@ -43,7 +43,7 @@ class TmdbCollectionSourceResolver @Inject constructor(
     private val tmdbSettingsDataStore: TmdbSettingsDataStore,
     private val discoveryPreferences: com.nuvio.tv.data.local.DiscoveryPreferences? = null
 ) {
-    private suspend fun discoveryKey(): String = discoveryPreferences?.preferences?.first()?.get(androidx.datastore.preferences.core.stringPreferencesKey("tmdb_key"))?.takeIf{it.isNotBlank()} ?: BuildConfig.TMDB_API_KEY
+    private suspend fun discoveryKey(): String = discoveryPreferences?.tmdbKey() ?: BuildConfig.TMDB_API_KEY
     private fun string(resId: Int): String = appContext.getString(resId)
 
     fun resolve(source: TmdbCollectionSource, page: Int = 1): Flow<NetworkResult<CatalogRow>> = flow {

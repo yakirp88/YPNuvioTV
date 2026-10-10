@@ -1,4 +1,5 @@
 # YP Nuvio Content Discovery test build
+Performance investigation build: disable runtime debugging and share profile settings reads across metadata requests. Startup crashes reported on the physical TV are not yet reproduced or confirmed fixed; a device crash log is still needed if they persist.
 Based on Nuvio TV 1.1.0-beta.5, with the existing compact IntroDB reporting UI and boundary calibration preserved.
 
 Six views, view/size cycling, movie and TV filters, single-field sorting, catalog selection, title filtering for loaded items, and profile settings. Configure a TMDB API key in Settings > Content Discovery. Sorting by title/runtime and filtering catalog items applies to loaded results.
