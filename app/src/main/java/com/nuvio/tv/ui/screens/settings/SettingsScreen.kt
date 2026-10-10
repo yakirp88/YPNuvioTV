@@ -929,14 +929,6 @@ private fun ContentDiscoverySettingsContent(
     initialFocusRequester: FocusRequester?
 ) {
     var showDisplay by remember { mutableStateOf(false) }
-    BackHandler(showDisplay) { showDisplay=false }
-    if(showDisplay) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(NuvioTheme.spacing.md)) {
-            SettingsDetailHeader(title="תצוגת תוכן וגילוי",subtitle="שפות, מידע חסר ותצוגה")
-            DiscoverySettingsContent()
-        }
-        return
-    }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)
@@ -945,9 +937,9 @@ private fun ContentDiscoverySettingsContent(
             title = stringResource(R.string.settings_content_discovery),
             subtitle = stringResource(R.string.settings_content_discovery_subtitle)
         )
-        SettingsGroupCard(modifier=Modifier.fillMaxWidth()) {
-            SettingsActionRow(title="תצוגת תוכן וגילוי",subtitle="שפות שמות התוכן ומידע חסר",onClick={showDisplay=true},
-                modifier=initialFocusRequester?.let{Modifier.focusRequester(it)} ?: Modifier)
+        SettingsCollapsibleSection(title="תצוגת תוכן וגילוי",description="שפות, מבנה התצוגה ומידע חסר",
+            expanded=showDisplay,onToggle={showDisplay=!showDisplay},focusRequester=initialFocusRequester) {
+            DiscoverySettingsContent()
         }
         SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
             SettingsActionRow(

@@ -4,6 +4,31 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscoveryPolicyTest {
+    @Test fun logoNeverExpandsAndNewestDecadeComesFirst() {
+        assertFalse(discoveryExpansionEnabled(DiscoveryView.CLEAR_LOGO,true))
+        assertTrue(discoveryExpansionEnabled(DiscoveryView.POSTERS,true))
+        assertFalse(discoveryExpansionEnabled(DiscoveryView.POSTERS,false))
+        assertEquals(2020,discoveryDecades(2026).first())
+        assertEquals(2030,discoveryDecades(2031).first())
+        assertEquals(1950,discoveryDecades(2026).last())
+    }
+    @Test fun voteCheckboxUsesSameBoundaryForMoviesAndSeriesAndRejectsUnknownCounts() {
+        val f=DiscoveryFilters(votes=DISCOVERY_MIN_VOTES)
+        assertEquals("100",f.query(true)["vote_count.gte"])
+        assertEquals("100",f.query(false)["vote_count.gte"])
+        assertFalse(discoveryVoteMatches(99,f.votes))
+        assertTrue(discoveryVoteMatches(100,f.votes))
+        assertFalse(discoveryVoteMatches(null,f.votes))
+        assertTrue(discoveryVoteMatches(null,null))
+    }
+    @Test fun addingCatalogToListPreservesExistingMemberships() {
+        val existing=mapOf("watchlist" to true,"other" to true,"destination" to false)
+        val result=discoveryAddedMembership(existing,"destination")
+        assertEquals(true,result["watchlist"]);assertEquals(true,result["other"])
+        assertEquals(true,result["destination"])
+        assertEquals(false,existing["destination"])
+        assertEquals(result,discoveryAddedMembership(result,"destination"))
+    }
     @Test fun informationDefaultsToTopAndDelayIsBounded() {
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition(null))
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("invalid"))

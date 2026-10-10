@@ -21,6 +21,7 @@ import javax.inject.Inject
 data class DiscoveryItem(val preview: MetaPreview, val names: List<String> = listOf(preview.name),
     val details: TmdbDetailsResponse? = null, val actors: Set<Int>? = null,
     val keywordIds: Set<Int>? = null, val popularity: Double? = null, val serverMatched: Boolean = false)
+data class DiscoverySavedCatalog(val key:String,val name:String,val collectionId:String,val count:Int,val onHome:Boolean)
 data class DiscoveryState(
     val movie: Boolean = true, val filters: DiscoveryFilters = DiscoveryFilters(),
     val query: String = "", val view: DiscoveryView = DiscoveryView.POSTERS, val size: Int = 1,
@@ -28,6 +29,8 @@ data class DiscoveryState(
     val items: List<DiscoveryItem> = emptyList(), val visible: List<DiscoveryItem> = emptyList(),
     val catalogs: List<DiscoverCatalog> = builtinDiscoveryCatalogs(), val catalog: DiscoverCatalog? = null,
     val topics: List<DiscoveryChoice> = emptyList(),
+    val savedCatalogs: List<DiscoverySavedCatalog> = emptyList(),
+    val listDestinations: List<LibraryListTab> = emptyList(),val catalogActionBusy:Boolean=false,val catalogActionMessage:String?=null,
     val genres: List<DiscoveryChoice> = emptyList(), val countries: List<DiscoveryChoice> = emptyList(),
     val languages: List<DiscoveryChoice> = emptyList(), val choices: List<DiscoveryChoice> = emptyList(),
     val metadataPending: Int = 0, val exporting: Boolean = false, val exportMessage: String? = null,
@@ -46,6 +49,7 @@ class DiscoveryViewModel @Inject constructor(
     private val api: TmdbApi, private val tmdb: TmdbService,
     private val addons: AddonRepository, private val catalogs: CatalogRepository,
     private val collectionsStore: com.nuvio.tv.data.local.CollectionsDataStore,
+    private val layoutPreferences: com.nuvio.tv.data.local.LayoutPreferenceDataStore,
     private val tmdbCollections: com.nuvio.tv.core.tmdb.TmdbCollectionSourceResolver,
     private val traktCollections: com.nuvio.tv.core.trakt.TraktPublicListSourceResolver,
     val preferences: DiscoveryPreferences,
@@ -73,6 +77,9 @@ class DiscoveryViewModel @Inject constructor(
     private var watchedMovies = emptySet<String>()
     private var savedIds = emptySet<String>()
     private var collectionSources = emptyMap<String,CollectionSource>()
+    private var savedCollections = emptyList<com.nuvio.tv.domain.model.Collection>()
+    private var disabledHomeKeys = emptyList<String>()
+    private var catalogActionJob:Job?=null
     private var addonCatalogs = emptyList<DiscoverCatalog>()
     private var skip = 0
     private var previous: DiscoveryState? = null
@@ -90,7 +97,7 @@ class DiscoveryViewModel @Inject constructor(
         viewModelScope.launch {
             preferences.profilePreferences.collect { (profile,p) ->
                 if(activeProfile != profile) {
-                    request?.cancel();exportJob?.cancel();generation++;previous=null;relatedSource=false
+                    request?.cancel();exportJob?.cancel();catalogActionJob?.cancel();generation++;previous=null;relatedSource=false
                     activeProfile=profile;prefsReady=false;mutable.value=DiscoveryState(catalogs=mutable.value.catalogs);synchronized(cache) { cache.clear() }
                 }
                 val s = mutable.value
@@ -112,8 +119,11 @@ class DiscoveryViewModel @Inject constructor(
         viewModelScope.launch { progress.observeWatchedMovieIds().collect { watchedMovies = it; render() } }
         viewModelScope.launch { watchedSeries.fullyWatchedSeriesIds.collect { render() } }
         viewModelScope.launch { library.libraryItems.collect { entries -> savedIds = entries.map { it.id }.toSet(); render() } }
+        viewModelScope.launch {library.membershipListTabs.collect {tabs -> mutable.update {it.copy(listDestinations=tabs)} }}
         viewModelScope.launch {
-            combine(addons.getInstalledAddons(),collectionsStore.collections) { installed, saved -> installed to saved }.collect { (installed,saved) ->
+            combine(addons.getInstalledAddons(),collectionsStore.collections,layoutPreferences.disabledHomeCatalogKeys) { installed, saved, disabled -> Triple(installed,saved,disabled) }.collect { (installed,saved,disabled) ->
+                savedCollections=saved;disabledHomeKeys=disabled
+                val snapshots=mutableListOf<DiscoverySavedCatalog>()
                 val choices = installed.enabledAddons().flatMap { addon -> addon.catalogs.filter { c -> c.extra.none { it.isRequired } }.map { c ->
                     DiscoverCatalog("${addon.baseUrl}:${c.apiType}:${c.id}", addon.id, addon.displayName, addon.baseUrl,
                         c.id, c.name, c.apiType, emptyList(), c.supportsExtra("skip"), c.skipStep())
@@ -124,10 +134,12 @@ class DiscoveryViewModel @Inject constructor(
                     val type=when(source){is TmdbCollectionSource -> if(source.mediaType==TmdbCollectionMediaType.MOVIE) "movie" else "series";is TraktCollectionSource -> if(source.mediaType==TmdbCollectionMediaType.MOVIE) "movie" else "series";is AddonCatalogCollectionSource -> source.type}
                     val key="native:${collection.id}:${folder.id}:$index"
                     sources[key]=source
+                    if(source is TmdbCollectionSource && source.snapshot!=null) snapshots+=DiscoverySavedCatalog(
+                        key,folder.title,collection.id,source.snapshot.size,"collection_${collection.id}" !in disabled)
                     DiscoverCatalog(key,"nuvio.collection","נוביו · ${collection.title}","",key,folder.title,type,emptyList(),true,20)
                 } } }
                 collectionSources=sources
-                mutable.update { it.copy(catalogs = builtinDiscoveryCatalogs()+native+choices) }
+                mutable.update { it.copy(catalogs = builtinDiscoveryCatalogs()+native+choices,savedCatalogs=snapshots) }
             }
         }
     }
@@ -444,6 +456,52 @@ class DiscoveryViewModel @Inject constructor(
                 }
         return DiscoveryPage(raw,popularities,more,pendingSkip,next,limited)
     }
+    fun showSavedCatalogsOnHome(keys:Set<String>) {
+        if(mutable.value.catalogActionBusy) return
+        val profile=activeProfile ?: return
+        val ids=mutable.value.savedCatalogs.filter {it.key in keys}.map {it.collectionId}.toSet()
+        if(ids.isEmpty()) return
+        val collections=savedCollections.filter {it.id in ids}
+        val disabled=disabledHomeKeys.filterNot {it in ids.map {id->"collection_$id"}.toSet()}
+        mutable.update {it.copy(catalogActionBusy=true,catalogActionMessage=null)}
+        catalogActionJob=viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    collections.forEach {collectionsStore.updateCollection(it.copy(pinToTop=true),profile)}
+                    layoutPreferences.setDisabledHomeCatalogKeys(disabled,profile)
+                }
+                if(activeProfile==profile) mutable.update {it.copy(catalogActionBusy=false,catalogActionMessage="הקטלוגים שנבחרו מוצגים בבית")}
+            } catch(e:CancellationException){throw e} catch(_:Exception){
+                if(activeProfile==profile) mutable.update {it.copy(catalogActionBusy=false,catalogActionMessage="לא ניתן לעדכן את ההצגה בבית")}
+            }
+        }
+    }
+    fun addSavedCatalogsToList(keys:Set<String>,destination:LibraryListTab) {
+        if(mutable.value.catalogActionBusy) return
+        val profile=activeProfile ?: return
+        val items=keys.flatMap {key -> (collectionSources[key] as? TmdbCollectionSource)?.snapshot.orEmpty()}
+            .distinctBy {it.type to it.id}
+        if(items.isEmpty() || items.any {!discoveryListSupports(destination,it.type)}) return
+        mutable.update {it.copy(catalogActionBusy=true,catalogActionMessage="מוסיף לרשימה…")}
+        catalogActionJob=viewModelScope.launch {
+            var completed=0
+            try {
+                for(item in items) {
+                    ensureActive();if(activeProfile!=profile) throw CancellationException()
+                    val input=item.preview().discoveryLibraryInput()
+                    val membership=library.getMembershipSnapshot(input)
+                    ensureActive();if(activeProfile!=profile) throw CancellationException()
+                    val result=library.applyMembershipChanges(input,ListMembershipChanges(discoveryAddedMembership(membership.listMembership,destination.key)))
+                    check(!result.requiresRemovalConfirmation)
+                    completed++
+                    mutable.update {it.copy(catalogActionMessage="${destination.title} · $completed/${items.size}")}
+                }
+                mutable.update {it.copy(catalogActionBusy=false,catalogActionMessage="נוספו $completed כותרים לרשימה ${destination.title}")}
+            } catch(e:CancellationException){throw e} catch(_:Exception){
+                if(activeProfile==profile) mutable.update {it.copy(catalogActionBusy=false,catalogActionMessage="הפעולה נעצרה: $completed/${items.size} כותרים נוספו. אפשר לנסות שוב")}
+            }
+        }
+    }
     fun cancelExport() { exportJob?.cancel(); mutable.update { it.copy(exporting=false,exportMessage="הייצוא בוטל; לא נשמר קטלוג חלקי") } }
     fun exportCatalog(name:String) {
         if(name.isBlank() || mutable.value.exporting) return
@@ -463,7 +521,7 @@ class DiscoveryViewModel @Inject constructor(
                         val trusted=discoveryUsesServerFilters(snapshot.catalog?.catalogId,snapshot.catalog?.addonId,snapshot.includeMissing) && !related
                         val f=snapshot.filters
                         val extra=snapshot.query.isNotBlank() || f.watched!=null || f.genres.isNotEmpty() || f.excludedGenres.isNotEmpty() ||
-                            f.company!=null || f.country!=null || f.language!=null || f.certification!=null || f.keyword!=null || f.actors.isNotEmpty() || f.status!=null
+                            f.votes!=null || f.company!=null || f.country!=null || f.language!=null || f.certification!=null || f.keyword!=null || f.actors.isNotEmpty() || f.status!=null
                         val items=if(related) snapshot.items else if((trusted && snapshot.query.isBlank() && f.watched==null) || !extra)
                             data.raw.map { DiscoveryItem(it,serverMatched=trusted) }
                         else coroutineScope { data.raw.map { p -> async { pool.withPermit { enrich(p,snapshot,strict=true).copy(serverMatched=trusted) } } }.awaitAll() }
@@ -547,7 +605,7 @@ class DiscoveryViewModel @Inject constructor(
                 (s.query.isBlank() || item.names.any { it.contains(s.query.trim(),true) }) &&
                 ((f.yearFrom == null && f.yearTo == null) || accepts(year != null) { year!! >= (f.yearFrom ?: 0) && year <= (f.yearTo ?: 9999) }) &&
                 ((f.scoreFrom == null && f.scoreTo == null) || accepts(p.imdbRating != null) { p.imdbRating!! >= (f.scoreFrom ?: 0.0) && p.imdbRating <= (f.scoreTo ?: 10.0) }) &&
-                (f.votes == null || accepts(p.voteCount != null) { p.voteCount!! >= f.votes }) &&
+                discoveryVoteMatches(p.voteCount,f.votes) &&
                 ((f.runtimeFrom == null && f.runtimeTo == null) || accepts(duration != null) { duration!! >= (f.runtimeFrom ?: 0) && duration <= (f.runtimeTo ?: Int.MAX_VALUE) }) &&
                 ((f.genres.isEmpty() && f.excludedGenres.isEmpty()) || accepts(d?.genres != null) { val ids=d!!.genres!!.map { it.id }; f.genres.all { it in ids } && f.excludedGenres.none { it in ids } }) &&
                 (f.country == null || accepts(p.country != null) { p.country!!.split(',').any { it.trim() == f.country } }) &&

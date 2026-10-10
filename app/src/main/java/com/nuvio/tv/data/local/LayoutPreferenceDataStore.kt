@@ -546,9 +546,9 @@ class LayoutPreferenceDataStore @Inject constructor(
         }
     }
 
-    suspend fun setDisabledHomeCatalogKeys(keys: List<String>) {
+    suspend fun setDisabledHomeCatalogKeys(keys: List<String>, profileId: Int = profileManager.activeProfileId.value) {
         val normalizedKeys = normalizeCatalogOrderKeys(keys)
-        store().edit { prefs ->
+        store(profileId).edit { prefs ->
             if (normalizedKeys.isEmpty()) {
                 prefs.remove(disabledHomeCatalogKeysKey)
             } else {

@@ -1,8 +1,11 @@
-# YP Nuvio Content Discovery 7
+# YP Content Discovery revision 8
 
-Based on 1.1.0-beta.5, with existing IntroDB reporting preserved.
-Modern Discovery with a top hero by default or a fixed left-side hero occupying one third of the screen. Hero artwork now reaches the physical top and left edges behind the toolbar and uses higher-resolution TMDB backgrounds. Four card styles and five sizes remain available. Expansion grows a horizontally scrollable row, pushing adjacent cards without shrinking their width.
+- Display settings expand inline using native settings components.
+- Layout opens the native picker: top bar / side bar.
+- Clear Logo cards never expand; newest decade is first.
+- Direction toward the parent returns from filter editors, preserving the parent selection.
+- Optional final filter checkbox requires at least 100 TMDB votes, including catalog/export results.
+- Saved catalogs have their own section with multiselect, show on Home, and add titles to an existing membership list. Existing memberships are preserved; partial failures show progress and allow retry.
+- Original TMDB integration and IntroDB reporting are unchanged.
 
-The hero prefers clear-logo artwork over a text title. Appended external IDs no longer require a nested TMDB ID; regression coverage verifies that this response shape preserves images and other metadata. IMDb-based titles can fall back to transparent Metahub logos when TMDB or addon artwork is absent. A real Dune logo was fetched and verified as an 800x310 transparent PNG. Existing native actions, settings and shared TMDB credentials are preserved.
-
-Release compilation and automated checks are run in CI. Remote navigation, anchored rows, image expansion and physical Google TV performance need device validation. Independent prerelease, debug signing. Preserve settings if Android reports an incompatible signing key. Saved catalog export still obeys source limits and requires narrower searches beyond 500 TMDB pages.
+Prerelease for TV verification; automated checks do not replace remote-control testing on a device.

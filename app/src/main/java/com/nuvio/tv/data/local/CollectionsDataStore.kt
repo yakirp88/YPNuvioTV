@@ -87,8 +87,8 @@ class CollectionsDataStore @Inject constructor(
         }
     }
 
-    suspend fun updateCollection(collection: Collection) {
-        store().edit { prefs ->
+    suspend fun updateCollection(collection: Collection, profileId: Int = profileManager.activeProfileId.value) {
+        store(profileId).edit { prefs ->
             val current = parseCollections(prefs[collectionsKey]).toMutableList()
             val index = current.indexOfFirst { it.id == collection.id }
             if (index >= 0) {

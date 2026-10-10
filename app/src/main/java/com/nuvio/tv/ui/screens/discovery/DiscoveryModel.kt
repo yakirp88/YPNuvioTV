@@ -103,3 +103,27 @@ fun discoveryDecade(filters: DiscoveryFilters, decade: Int): DiscoveryFilters =
 fun discoveryLogoUrl(path: String?): String? = path?.takeIf { it.isNotBlank() }?.let {
     if(it.startsWith("https://") || it.startsWith("http://")) it else "https://image.tmdb.org/t/p/original$it"
 }
+
+/** Product threshold: removes tiny voting samples without requiring blockbuster volume. */
+const val DISCOVERY_MIN_VOTES = 100
+fun discoveryExpansionEnabled(style: DiscoveryView, enabled: Boolean) = enabled && style != DiscoveryView.CLEAR_LOGO
+fun discoveryDecades(year: Int = java.time.Year.now().value): List<Int> =
+    (1950..(year / 10 * 10) step 10).reversed()
+fun discoveryParentDirection(rtl: Boolean): Int = if(rtl)
+    android.view.KeyEvent.KEYCODE_DPAD_RIGHT else android.view.KeyEvent.KEYCODE_DPAD_LEFT
+
+/** Add one destination without changing existing memberships. */
+fun discoveryAddedMembership(existing: Map<String, Boolean>, destination: String) = existing + (destination to true)
+fun discoveryListSupports(tab: com.nuvio.tv.domain.model.LibraryListTab, type: String) =
+    tab.isMembershipDestination && (tab.supportedContentTypes == null || type in tab.supportedContentTypes)
+
+fun com.nuvio.tv.domain.model.MetaPreview.discoveryLibraryInput(): com.nuvio.tv.domain.model.LibraryEntryInput {
+    val ids=com.nuvio.tv.data.repository.parseContentIds(id)
+    return com.nuvio.tv.domain.model.LibraryEntryInput(itemId=id,itemType=apiType,title=name,
+        year=releaseInfo?.take(4)?.toIntOrNull(),traktId=ids.trakt,simklId=ids.simkl,
+        imdbId=imdbId ?: ids.imdb,tmdbId=ids.tmdb,poster=rawPosterUrl ?: poster,
+        background=background,logo=logo,description=description,releaseInfo=releaseInfo,
+        imdbRating=imdbRating,genres=genres,addonBaseUrl=sourceAddonBaseUrl)
+}
+
+fun discoveryVoteMatches(count: Int?, minimum: Int?) = minimum == null || count != null && count >= minimum

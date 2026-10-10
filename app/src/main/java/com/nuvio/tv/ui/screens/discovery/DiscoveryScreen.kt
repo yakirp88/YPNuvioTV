@@ -116,9 +116,9 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     }
     BackHandler(s.sourceLabel != null && !showText && overlay == null) { viewModel.restoreSource() }
     BackHandler(showText && overlay == null) { showText = false; firstToolbar.requestFocus() }
-    LaunchedEffect(s.focusedId,s.expandCards,s.expansionDelay,gridFocusedId,overlay,showText,options.target?.id,s.trailerTitle) {
+    LaunchedEffect(s.focusedId,s.view,s.expandCards,s.expansionDelay,gridFocusedId,overlay,showText,options.target?.id,s.trailerTitle) {
         expandedId=null
-        if(s.expandCards && options.target==null && s.trailerTitle==null && overlay==null && !showText && gridFocusedId==s.focusedId && s.focusedId!=null) {
+        if(discoveryExpansionEnabled(s.view,s.expandCards) && options.target==null && s.trailerTitle==null && overlay==null && !showText && gridFocusedId==s.focusedId && s.focusedId!=null) {
             delay(s.expansionDelay*1000L);expandedId=s.focusedId
         }
     }
@@ -127,7 +127,11 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     LaunchedEffect(focused?.preview?.id,focused?.preview?.imdbId) { focused?.preview?.id?.let {viewModel.focus(it,true)} }
     fun navigate(p: MetaPreview) { returning=true; onNavigateToDetail(p.id,p.apiType,p.sourceAddonBaseUrl.orEmpty()) }
 
-    Box(Modifier.fillMaxSize().background(background)) {
+    val parentRtl=LocalLayoutDirection.current==LayoutDirection.Rtl
+    Box(Modifier.fillMaxSize().background(background).onPreviewKeyEvent {event ->
+        event.nativeKeyEvent.action==android.view.KeyEvent.ACTION_UP && overlay=="filter-menu" &&
+            event.nativeKeyEvent.keyCode==discoveryParentDirection(parentRtl)
+    }) {
     DiscoveryHeroArtwork(hero,side,Modifier.align(androidx.compose.ui.AbsoluteAlignment.TopLeft))
     Column(Modifier.fillMaxSize().padding(horizontal=18.dp,vertical=10.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -261,7 +265,8 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                     Field("שם הקטלוג",catalogName,{catalogName=it})
                     Action("אסוף ושמור",{if(catalogName.isNotBlank()) {viewModel.exportCatalog(catalogName);overlay=null}})
                 }
-                "catalogs" -> CatalogPicker(s) { viewModel.selectCatalog(it); overlay=null }
+                "catalogs" -> CatalogPicker(s,onSelect={viewModel.selectCatalog(it);overlay=null},
+                    onShowHome=viewModel::showSavedCatalogsOnHome,onAddToList=viewModel::addSavedCatalogsToList)
                 "sort" -> SortPicker(s,viewModel::sort)
                 else -> if(overlay?.startsWith("filter:")==true) FilterEditor(overlay!!.substringAfter(':'),s,viewModel::filter,viewModel::lookup)
             }
@@ -373,8 +378,9 @@ internal fun Action(label:String,onClick:()->Unit,active:Boolean=false,modifier:
 }
 @Composable
 private fun DiscoveryOverlay(onClose:()->Unit,back:Boolean=false,content:@Composable ()->Unit) {
+    val rtl=LocalLayoutDirection.current==LayoutDirection.Rtl
     Dialog(onDismissRequest=onClose,properties=DialogProperties(usePlatformDefaultWidth=false)) {
-        Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+        Box(Modifier.fillMaxSize().then(if(back) Modifier.returnToParent(rtl,onClose) else Modifier),contentAlignment=Alignment.Center) {
             Column(Modifier.width(500.dp).heightIn(max=420.dp).clip(RoundedCornerShape(18.dp)).background(panel).padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                 Action(if(back) "חזרה" else "סגור ×",onClose)
                 content()
@@ -383,12 +389,46 @@ private fun DiscoveryOverlay(onClose:()->Unit,back:Boolean=false,content:@Compos
     }
 }
 @Composable
-private fun CatalogPicker(s:DiscoveryState,onSelect:(com.nuvio.tv.ui.screens.search.DiscoverCatalog?)->Unit) {
-    Text("בחירת קטלוג",color=Color.White,fontSize=14.sp)
-    LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        item { Action("כל התוכן",{onSelect(null)},s.catalog==null) }
-        items(s.catalogs.filter { it.type == if(s.movie) "movie" else "series" },key={it.key}) { c ->
-            Action("${c.catalogName} · ${c.addonName}",{onSelect(c)},s.catalog?.key==c.key)
+private fun CatalogPicker(s:DiscoveryState,onSelect:(com.nuvio.tv.ui.screens.search.DiscoverCatalog?)->Unit,
+    onShowHome:(Set<String>)->Unit,onAddToList:(Set<String>,com.nuvio.tv.domain.model.LibraryListTab)->Unit) {
+    var marked by remember {mutableStateOf(emptySet<String>())}
+    var selectingList by remember {mutableStateOf(false)}
+    val saved=s.savedCatalogs.filter {saved -> s.catalogs.any {it.key==saved.key && it.type==if(s.movie) "movie" else "series"}}
+    val savedKeys=saved.map {it.key}.toSet()
+    val selected=marked.intersect(savedKeys)
+    val destinations=s.listDestinations.filter {discoveryListSupports(it,if(s.movie) "movie" else "series")}
+    Text(if(selectingList) "בחר רשימה ל־${selected.size} קטלוגים" else "בחירת קטלוג",color=Color.White,fontSize=14.sp)
+    if(s.catalogActionBusy || s.catalogActionMessage!=null) Text(s.catalogActionMessage.orEmpty(),color=accent,fontSize=12.sp)
+    LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        if(selectingList) {
+            item {Action("חזרה לקטלוגים",{selectingList=false})}
+            if(destinations.isEmpty()) item {Text("אין רשימות זמינות",color=Color.LightGray,fontSize=12.sp)}
+            items(destinations,key={it.key}) {list -> Action(list.title,{
+                if(!s.catalogActionBusy) {onAddToList(selected,list);selectingList=false}
+            },modifier=Modifier.fillMaxWidth())}
+        } else {
+            item { Action("כל התוכן",{onSelect(null)},s.catalog==null) }
+            if(saved.isNotEmpty()) {
+                item {Text("קטלוגים שמורים",color=Color.LightGray,fontSize=12.sp)}
+                items(saved,key={it.key}) {savedCatalog ->
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                        Action(if(savedCatalog.key in selected) "✓" else "○",{
+                            if(!s.catalogActionBusy) marked=if(savedCatalog.key in marked) marked-savedCatalog.key else marked+savedCatalog.key
+                        },savedCatalog.key in selected,Modifier.semantics {contentDescription="סימון הקטלוג ${savedCatalog.name}"})
+                        Action("${savedCatalog.name} · ${savedCatalog.count}",{
+                            s.catalogs.find {it.key==savedCatalog.key}?.let(onSelect)
+                        },s.catalog?.key==savedCatalog.key,Modifier.weight(1f))
+                    }
+                }
+                if(selected.isNotEmpty()) {
+                    item {Action("הצג בבית (${selected.size})",{if(!s.catalogActionBusy) onShowHome(selected)})}
+                    item {Action("הוסף כותרים לרשימה…",{if(!s.catalogActionBusy) selectingList=true})}
+                }
+                item {Text("קטלוגים נוספים",color=Color.LightGray,fontSize=12.sp)}
+            }
+            items(s.catalogs.filter {it.key !in savedKeys && it.type==if(s.movie) "movie" else "series"},key={it.key}) {c ->
+                Action("${c.catalogName} · ${c.addonName}",{onSelect(c)},s.catalog?.key==c.key)
+            }
         }
     }
 }
@@ -406,6 +446,7 @@ private fun ActiveFilters(f:DiscoveryFilters,onChange:(DiscoveryFilters)->Unit) 
         if(f.genres.isNotEmpty()) add("ז׳אנרים (${f.genres.size})" to {onChange(f.copy(genres=emptySet()))})
         if(f.excludedGenres.isNotEmpty()) add("ז׳אנרים מוחרגים" to {onChange(f.copy(excludedGenres=emptySet()))})
         if(f.scoreFrom!=null || f.scoreTo!=null) add("ציון" to {onChange(f.copy(scoreFrom=null,scoreTo=null))})
+        f.votes?.let {add("לפחות $it הצבעות" to {onChange(f.copy(votes=null))})}
         f.actors.forEach { a -> add(a.name to {onChange(f.copy(actors=f.actors-a))}) }
         f.company?.let {add(it.name to {onChange(f.copy(company=null))})}
         f.country?.let {add(it to {onChange(f.copy(country=null))})}
@@ -426,6 +467,7 @@ private fun filterKinds(movie:Boolean) = buildList {
     add("company" to "אולפן");add("country" to "מדינה");add("language" to "שפת מקור")
     add("topic" to "נושא וסגנון");add(if(movie) "age" to "דירוג גיל" else "status" to "סטטוס סדרה")
     add("watched" to "מצב צפייה")
+    add("votes" to "לפחות $DISCOVERY_MIN_VOTES הצבעות")
 }
 private val inlineFilterKinds=setOf("genre","topic","age","status","watched")
 @Composable
@@ -447,7 +489,9 @@ private fun FilterMenu(s:DiscoveryState,lastKind:String,overlay:String,onFocusKi
                 CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides direction) {
                     Column(Modifier.weight(1f)) { kinds.forEach { (kind,label) ->
                         Box {
-                            Action(label,{onSelect(kind)},modifier=Modifier.fillMaxWidth().focusRequester(requesters.getValue(kind))
+                            Action(if(kind=="votes") "$label ${if(s.filters.votes!=null) "✓" else "○"}" else label,
+                                {if(kind=="votes") onChange(s.filters.copy(votes=if(s.filters.votes==null) DISCOVERY_MIN_VOTES else null)) else onSelect(kind)},
+                                active=kind=="votes" && s.filters.votes!=null,modifier=Modifier.fillMaxWidth().focusRequester(requesters.getValue(kind))
                                 .focusProperties {left=trash}.onFocusChanged {if(it.isFocused) onFocusKind(kind)})
                             if(overlay=="filter:$kind" && kind in inlineFilterKinds) AdjacentMenu(onBack) {
                                 FilterEditor(kind,s,onChange,onLookup)
@@ -470,16 +514,20 @@ private fun ResetFiltersButton(onClick:()->Unit,modifier:Modifier=Modifier) {
 }
 @Composable
 private fun AdjacentMenu(onBack:()->Unit,content:@Composable ()->Unit) {
+    val rtl=LocalLayoutDirection.current==LayoutDirection.Rtl
     val gap=with(androidx.compose.ui.platform.LocalDensity.current){6.dp.roundToPx()}
     val position=remember(gap) {object:androidx.compose.ui.window.PopupPositionProvider {
         override fun calculatePosition(anchorBounds:androidx.compose.ui.unit.IntRect,windowSize:androidx.compose.ui.unit.IntSize,
             layoutDirection:androidx.compose.ui.unit.LayoutDirection,popupContentSize:androidx.compose.ui.unit.IntSize):androidx.compose.ui.unit.IntOffset =
-            androidx.compose.ui.unit.IntOffset((anchorBounds.left-popupContentSize.width-gap).coerceAtLeast(0),
+            androidx.compose.ui.unit.IntOffset(
+                (if(layoutDirection==LayoutDirection.Rtl) anchorBounds.left-popupContentSize.width-gap else anchorBounds.right+gap)
+                    .coerceIn(0,(windowSize.width-popupContentSize.width).coerceAtLeast(0)),
                 anchorBounds.top.coerceIn(0,(windowSize.height-popupContentSize.height).coerceAtLeast(0)))
     } }
     androidx.compose.ui.window.Popup(popupPositionProvider=position,onDismissRequest=onBack,
         properties=androidx.compose.ui.window.PopupProperties(focusable=true)) {
-        Column(Modifier.width(190.dp).heightIn(max=320.dp).background(panel,RoundedCornerShape(8.dp)).padding(8.dp)) {content()}
+        Column(Modifier.width(190.dp).heightIn(max=320.dp).returnToParent(rtl,onBack)
+            .background(panel,RoundedCornerShape(8.dp)).padding(8.dp)) {content()}
     }
 }
 @Composable
@@ -499,7 +547,7 @@ private fun FilterEditor(kind:String,s:DiscoveryState,onChange:(DiscoveryFilters
         when(kind) {
             "year" -> {
                 item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-                    (1950..2020 step 10).forEach { y -> Action("${y}s",{onChange(discoveryDecade(f,y))},f.yearFrom==y && f.yearTo==y+9) }
+                    discoveryDecades().forEach { y -> Action("${y}s",{onChange(discoveryDecade(f,y))},f.yearFrom==y && f.yearTo==y+9) }
                 }}
                 item {NumericRange("שנה",f.yearFrom?.toString().orEmpty(),f.yearTo?.toString().orEmpty(),
                     {onChange(f.copy(yearFrom=it.toIntOrNull()))},{onChange(f.copy(yearTo=it.toIntOrNull()))})}
@@ -556,4 +604,13 @@ private fun Field(label:String,value:String,onChange:(String)->Unit,numeric:Bool
         unfocusedBorderColor=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary),
         textStyle=androidx.compose.ui.text.TextStyle(color=Color.White,fontSize=14.sp),
         keyboardOptions=KeyboardOptions(keyboardType=if(numeric) KeyboardType.Decimal else KeyboardType.Text),label={Text(label,color=Color.LightGray,fontSize=12.sp)})
+}
+
+/** Directional return works from every focused child, including input fields. */
+private fun Modifier.returnToParent(rtl:Boolean,onBack:()->Unit):Modifier = onPreviewKeyEvent {event ->
+    val native=event.nativeKeyEvent
+    if(native.keyCode==discoveryParentDirection(rtl)) {
+        if(native.action==android.view.KeyEvent.ACTION_DOWN && native.repeatCount==0) onBack()
+        true
+    } else false
 }

@@ -52,7 +52,7 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
     val position by vm.position.collectAsState()
     val expansionDelay by vm.expansionDelay.collectAsState()
     var selectingPosition by remember { mutableStateOf(false) }
-    val positions=listOf("מודרני — למעלה","מודרני — צד")
+    val positions=listOf("סרגל עליון","סרגל צידי")
     val expandCards by vm.expandCards.collectAsState()
     val layout by layoutVm.uiState.collectAsState()
     val missing by vm.missing.collectAsState()
@@ -64,10 +64,14 @@ internal fun DiscoverySettingsContent(initialFocusRequester: FocusRequester? = n
         SettingsToggleRow("כלול כותרים עם מידע חסר","חל כאשר חסר נתון שנדרש לפילטר פעיל",missing,vm::missing,
             modifier=initialFocusRequester?.let{Modifier.focusRequester(it)} ?: Modifier)
         DiscoverLocationRow(layout.discoverLocation,layout.lastNonOffDiscoverLocation) {layoutVm.onEvent(LayoutSettingsEvent.SetDiscoverLocation(it))}
-        SettingsActionRow(title="מבנה תצוגת תוכן וגילוי",subtitle="מידע קבוע למעלה או בשליש השמאלי של המסך",value=positions[position.ordinal],onClick={selectingPosition=!selectingPosition})
-        if(selectingPosition) com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.entries.forEach { option ->
-            Action(positions[option.ordinal],{vm.position(option);selectingPosition=false},position==option)
-        }
+        SettingsActionRow(title="מבנה תצוגת תוכן וגילוי",subtitle="מידע קבוע למעלה או בשליש השמאלי של המסך",value=positions[position.ordinal],onClick={selectingPosition=true})
+        if(selectingPosition) SettingsSingleChoiceDialog(
+            title="מבנה התצוגה",
+            options=com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition.entries.map { option ->
+                SettingsPickerOption(option,positions[option.ordinal])
+            },selectedValue=position,onOptionSelected={vm.position(it);selectingPosition=false},
+            onDismiss={selectingPosition=false},width=460.dp,maxHeight=320.dp)
+
         SettingsToggleRow("הרחבת תמונת הכותר","הרחבת הכרטיס המסומן לאחר השהיה, בלי להסתיר את שאר השורה",expandCards,vm::expandCards)
         if(expandCards) SliderSettingsItem(
             title="השהיה לפני הרחבת תמונת הכותר",subtitle="0 שניות — הרחבה מיידית",value=expansionDelay,valueText="${expansionDelay}s",minValue=0,maxValue=10,step=1,onValueChange=vm::expansionDelay)
