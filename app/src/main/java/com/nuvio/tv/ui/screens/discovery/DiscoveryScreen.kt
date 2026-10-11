@@ -67,7 +67,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     val options by viewModel.posterOptions.state.collectAsState()
     var overlay by rememberSaveable { mutableStateOf<String?>(null) }
     var lastFilter by rememberSaveable { mutableStateOf("year") }
-    var gridFocusedId by remember { mutableStateOf<String?>(null) }
     var showText by rememberSaveable { mutableStateOf(false) }
     var actionItem by remember { mutableStateOf<MetaPreview?>(null) }
     var hint by remember { mutableStateOf<String?>(null) }
@@ -89,7 +88,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     LaunchedEffect(Unit) {
         if(!resumeFromDetail) {
             if(!s.movie) viewModel.selectType(true)
-            else if(s.filters.active || s.query.isNotBlank() || s.catalog != null || s.sourceLabel != null) viewModel.reset()
+            else if(s.filters != DiscoveryFilters() || s.query.isNotBlank() || s.catalog != null || s.sourceLabel != null) viewModel.reset()
         }
         val id = s.focusedId.takeIf { resumeFromDetail }
         val index = s.visible.indexOfFirst { it.preview.id == id }
@@ -207,7 +206,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                                             DisposableEffect(entry.preview.id) {requesters[entry.preview.id]=r;onDispose {requesters.remove(entry.preview.id)}}
                                             DiscoveryTile(entry.preview,s.view,s.size,Modifier.width(normalWidth).fillMaxHeight().focusRequester(r),fillCards=s.fillCards,
                                                 onFocus={viewModel.focus(entry.preview.id)},
-                                                onFocusState={hasFocus->if(hasFocus) gridFocusedId=entry.preview.id else if(gridFocusedId==entry.preview.id) gridFocusedId=null},
                                                 onClick={navigate(entry.preview)},onHold={actionItem=entry.preview;viewModel.prepareActions(entry.preview);viewModel.posterOptions.show(entry.preview,entry.preview.sourceAddonBaseUrl)})
                                         }}
                                         repeat(columns-row.size) {Spacer(Modifier.width(normalWidth))}
@@ -301,13 +299,13 @@ private fun ContentSwitch(movie: Boolean,onClick:()->Unit) {
     }
 }
 @Composable
-private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:Modifier,fillCards:Boolean=true,onFocus:()->Unit,onFocusState:(Boolean)->Unit,onClick:()->Unit,onHold:()->Unit) {
+private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:Modifier,fillCards:Boolean=true,onFocus:()->Unit,onClick:()->Unit,onHold:()->Unit) {
     var focused by remember {mutableStateOf(false)}
     var longPressTriggered by remember {mutableStateOf(false)}
     val tracker=rememberLongPressKeyTracker()
     val shape=RoundedCornerShape(8.dp)
     fun hold(){longPressTriggered=true;onHold()}
-    val base=modifier.onFocusChanged {focused=it.isFocused;onFocusState(it.isFocused);if(it.isFocused) {longPressTriggered=false;onFocus()}}
+    val base=modifier.onFocusChanged {focused=it.isFocused;if(it.isFocused) {longPressTriggered=false;onFocus()}}
         .onPreviewKeyEvent {event ->
             val native=event.nativeKeyEvent
             fun select(code:Int)=code==android.view.KeyEvent.KEYCODE_DPAD_CENTER || code==android.view.KeyEvent.KEYCODE_ENTER || code==android.view.KeyEvent.KEYCODE_NUMPAD_ENTER

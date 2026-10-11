@@ -26,11 +26,11 @@ class DiscoveryMetadataCache @Inject constructor(
     private val mutableRevision=MutableStateFlow(0L)
     val revision=mutableRevision.asStateFlow()
     init {scope.launch {preferences.cacheLimitMb.collect {limit ->
-        runCatching {disk.configure(limit.toLong()*1024*1024);mutableUsage.value=disk.usedBytes}
+        runCatching {disk.configure(limit.toLong()*1_000_000);mutableUsage.value=disk.usedBytes}
     }}}
 
     suspend fun measure()=withContext(Dispatchers.IO) {
-        disk.configure(preferences.cacheLimitMb.first().toLong()*1024*1024)
+        disk.configure(preferences.cacheLimitMb.first().toLong()*1_000_000)
         mutableUsage.value=disk.measure()
     }
     suspend fun clear()=withContext(Dispatchers.IO) {
@@ -41,7 +41,7 @@ class DiscoveryMetadataCache @Inject constructor(
         val ticket=disk.revision
         val cached=withContext(Dispatchers.IO) {
             val value=try {
-                disk.configure(preferences.cacheLimitMb.first().toLong()*1024*1024)
+                disk.configure(preferences.cacheLimitMb.first().toLong()*1_000_000)
                 disk.read(key,ttlMs)?.let {adapter.fromJson(it)}
             } catch(e:CancellationException) {throw e} catch(_:Exception) {null}
             mutableUsage.value=runCatching {disk.usedBytes}.getOrNull()
@@ -61,7 +61,7 @@ internal class DiscoveryMetadataDiskCache(private val directory:File,private val
     private data class Entry(val file:File,val bytes:Long,var accessed:Long)
     private val entries=linkedMapOf<String,Entry>()
     private var initialized=false
-    private var limit=50L*1024*1024
+    private var limit=50L*1_000_000
     private var bytes=0L
     private var epoch=0L
     val revision:Long @Synchronized get()=epoch
