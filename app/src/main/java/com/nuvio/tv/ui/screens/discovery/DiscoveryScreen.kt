@@ -79,7 +79,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     } }
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
     val firstToolbar = remember { FocusRequester() }
-    val textFocus = remember { FocusRequester() }
     var returning by rememberSaveable { mutableStateOf(false) }
     val resumeFromDetail = remember { returning }
     val lifecycle = LocalLifecycleOwner.current
@@ -107,7 +106,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         if(r != null) runCatching{r.requestFocus()} else firstToolbar.requestFocus()
         returning=false
     }
-    LaunchedEffect(showText) { if(showText) textFocus.requestFocus() }
     LaunchedEffect(hint) { if(hint != null) { delay(1800); hint = null } }
     val side=s.infoPosition==DiscoveryInfoPosition.SIDE
     val columns=discoveryColumns(s.view,s.size,side)
@@ -161,11 +159,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         }
         }
         Box(Modifier.height(24.dp)) { hint?.let { Text(it,color=accent,fontSize=12.sp) } }
-        if(showText) Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(s.query, viewModel::text, Modifier.weight(1f).focusRequester(textFocus),singleLine=true,textStyle=androidx.compose.ui.text.TextStyle(color=Color.White),label={ Text("סינון בתוצאות שנטענו",color=Color.LightGray) })
-            Action("×", { viewModel.text("") })
-            Text("${s.visible.size} מתוך ${s.items.size} שנטענו",color=Color.LightGray,fontSize=12.sp)
-        }
         if(s.sourceLabel!=null || s.catalog!=null) Text(s.sourceLabel ?: "${s.catalog?.catalogName} · ${s.catalog?.addonName}",color=accent,fontSize=11.sp)
         if(s.filters.active) ActiveFilters(s.filters,viewModel::filter)
         if(s.error != null) Row(verticalAlignment=Alignment.CenterVertically) {
@@ -231,6 +224,10 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
         Box(Modifier.height(18.dp)) { if(s.loading || s.metadataPending>0) Text(if(s.loading) "טוען עוד…" else "משלים פרטים…",color=accent,fontSize=12.sp) }
     }
     }
+    if(showText) DiscoveryTextSearch(s,viewModel::text,viewModel::pauseTextSearch) {
+        showText=false
+        firstToolbar.requestFocus()
+    }
     if(overlay != null && overlay!="actions" && overlay!="filter-menu" && overlay!="sort-menu" && !(overlay?.startsWith("filter:")==true && overlay!!.substringAfter(':') in inlineFilterKinds)) {
         DiscoveryOverlay(onClose={overlay=if(overlay?.startsWith("filter:")==true) "filter-menu" else null},back=overlay?.startsWith("filter:")==true) {
             when(overlay) {
@@ -271,6 +268,39 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
             if(s.movie) DiscoveryNativeAction("שחקנים ובמאי") {viewModel.posterOptions.dismiss();overlay="people";viewModel.actorFromTitle(p)}
         } },
         onNavigateToDetail={id,type,url -> returning=true; onNavigateToDetail(id,type,url)})
+}
+
+@Composable
+private fun DiscoveryTextSearch(s:DiscoveryState,onText:(String)->Unit,onPause:(Boolean)->Unit,onConfirm:()->Unit) {
+    val input=remember {FocusRequester()}
+    Dialog(onDismissRequest=onConfirm,properties=DialogProperties(usePlatformDefaultWidth=false)) {
+        LaunchedEffect(Unit) {withFrameNanos { };input.requestFocus()}
+        Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+            Column(Modifier.width(460.dp).clip(RoundedCornerShape(18.dp)).background(panel).padding(24.dp),
+                verticalArrangement=Arrangement.spacedBy(14.dp)) {
+                Text("חיפוש כותרים",color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary,fontSize=18.sp)
+                OutlinedTextField(s.query,onText,Modifier.fillMaxWidth().focusRequester(input),singleLine=true,
+                    textStyle=androidx.compose.ui.text.TextStyle(color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary),
+                    label={Text("שם בעברית, באנגלית או בשפת המקור",fontSize=12.sp)})
+                Text("${s.visible.size} התאמות מתוך ${s.items.size} כותרים שנטענו לבדיקה",color=accent,fontSize=13.sp)
+                Text(when {
+                    s.query.isBlank() -> "הקלד טקסט כדי להתחיל בחיפוש"
+                    s.error!=null -> "החיפוש נעצר: ${s.error}"
+                    s.searchPaused -> "החיפוש מושהה"
+                    s.loading || s.metadataPending>0 || s.hasMore -> "ממשיך לחפש… התוצאות מתווספות גם לאחר אישור"
+                    else -> "החיפוש הסתיים במקור הזמין"
+                },color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary,fontSize=12.sp)
+                Text("החיפוש מתבצע בתוך המקור והפילטרים הפעילים",color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextSecondary,fontSize=11.sp)
+                Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Action("אישור",onConfirm)
+                    if(s.query.isNotBlank()) {
+                        Action(if(s.searchPaused) "המשך חיפוש" else "השהה חיפוש",{onPause(!s.searchPaused)})
+                        Action("נקה",{onText("")})
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

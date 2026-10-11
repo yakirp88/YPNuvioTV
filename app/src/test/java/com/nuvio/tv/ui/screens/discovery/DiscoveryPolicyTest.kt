@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscoveryPolicyTest {
+    @Test fun textSearchAdvancesOnlyAfterBatchCompletesAndStopsOnPauseErrorOrEnd() {
+        assertTrue(discoveryShouldContinueSearch("אמ",false,false,0,true,null))
+        assertFalse(discoveryShouldContinueSearch(" ",false,false,0,true,null))
+        assertFalse(discoveryShouldContinueSearch("אמ",true,false,0,true,null))
+        assertFalse(discoveryShouldContinueSearch("אמ",false,true,0,true,null))
+        assertFalse(discoveryShouldContinueSearch("אמ",false,false,60,true,null))
+        assertFalse(discoveryShouldContinueSearch("אמ",false,false,0,false,null))
+        assertFalse(discoveryShouldContinueSearch("אמ",false,false,0,true,"offline"))
+    }
     @Test fun newestDecadeComesFirst() {
         assertEquals(2020,discoveryDecades(2026).first())
         assertEquals(2030,discoveryDecades(2031).first())

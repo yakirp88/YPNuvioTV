@@ -1,5 +1,8 @@
 package com.nuvio.tv.ui.screens.discovery
 
+fun discoveryShouldContinueSearch(query:String,paused:Boolean,loading:Boolean,pending:Int,hasMore:Boolean,error:String?):Boolean =
+    query.isNotBlank() && !paused && !loading && pending==0 && hasMore && error==null
+
 /** Shared query policy. Released titles and a 100-vote sample are enabled by default. */
 data class DiscoveryFilters(
     val yearFrom: Int? = null, val yearTo: Int? = null,

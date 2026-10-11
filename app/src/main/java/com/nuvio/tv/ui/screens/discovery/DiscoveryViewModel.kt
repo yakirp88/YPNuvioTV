@@ -24,7 +24,7 @@ data class DiscoveryItem(val preview: MetaPreview, val names: List<String> = lis
 data class DiscoverySavedCatalog(val key:String,val name:String,val collectionId:String,val count:Int,val onHome:Boolean)
 data class DiscoveryState(
     val movie: Boolean = true, val filters: DiscoveryFilters = DiscoveryFilters(),
-    val query: String = "", val view: DiscoveryView = DiscoveryView.POSTERS, val size: Int = 1,
+    val query: String = "", val searchPaused: Boolean = false, val view: DiscoveryView = DiscoveryView.POSTERS, val size: Int = 1,
     val sort: DiscoverySort = DiscoverySort.POPULARITY, val descending: Boolean = true,
     val items: List<DiscoveryItem> = emptyList(), val visible: List<DiscoveryItem> = emptyList(),
     val catalogs: List<DiscoverCatalog> = builtinDiscoveryCatalogs(), val catalog: DiscoverCatalog? = null,
@@ -94,6 +94,19 @@ class DiscoveryViewModel @Inject constructor(
 
     init {
         posterOptions.bind(viewModelScope)
+        // Search follows the current catalog cursor. Wait for each batch's translations
+        // before advancing, so a sparse text match never fans out metadata requests.
+        viewModelScope.launch {
+            state.map { s -> s.query.trim().takeIf {
+                discoveryShouldContinueSearch(s.query,s.searchPaused,s.loading,s.metadataPending,s.hasMore,s.error)
+            } }.distinctUntilChanged().collectLatest { query ->
+                if(query != null) {
+                    delay(350)
+                    val s=mutable.value
+                    if(s.query.trim()==query && discoveryShouldContinueSearch(s.query,s.searchPaused,s.loading,s.metadataPending,s.hasMore,s.error)) load()
+                }
+            }
+        }
         viewModelScope.launch { metadataCache.revision.drop(1).collect { synchronized(cache) {cache.clear()} } }
         viewModelScope.launch {
             preferences.profilePreferences.collect { (profile,p) ->
@@ -200,7 +213,8 @@ class DiscoveryViewModel @Inject constructor(
         mutable.update { it.copy(catalog = catalog, filters = DiscoveryFilters(), query = "", focusedId = null, sourceLabel=null, items = emptyList(), visible = emptyList()) }; load(true)
     }
     fun reset() { relatedSource=false;previous=null;mutable.update { it.copy(catalog = null, filters = DiscoveryFilters(), query = "", focusedId = null, sourceLabel=null, items = emptyList(), visible = emptyList()) }; load(true) }
-    fun text(value: String) { mutable.update { it.copy(query = value) }; render() }
+    fun text(value: String) { mutable.update { it.copy(query = value,searchPaused=false) }; render() }
+    fun pauseTextSearch(paused:Boolean) { mutable.update {it.copy(searchPaused=paused)} }
     fun focus(id: String, refreshHero: Boolean = false) {
         if(mutable.value.focusedId == id && !refreshHero) return
         mutable.update { it.copy(focusedId = id, heroPreview = null) }
