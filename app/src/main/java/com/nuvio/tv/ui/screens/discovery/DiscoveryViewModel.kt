@@ -20,7 +20,7 @@ import javax.inject.Inject
 
 data class DiscoveryItem(val preview: MetaPreview, val names: List<String> = listOf(preview.name),
     val details: TmdbDetailsResponse? = null, val actors: Set<Int>? = null,
-    val keywordIds: Set<Int>? = null, val popularity: Double? = null, val serverMatched: Boolean = false, val metadataReady:Boolean=false)
+    val keywordIds: Set<Int>? = null, val popularity: Double? = null, val serverMatched: Boolean = false, val metadataReady:Boolean=false, val serverActorsMatched:Boolean=false)
 data class DiscoverySavedCatalog(val key:String,val name:String,val collectionId:String,val count:Int,val onHome:Boolean)
 data class DiscoveryState(
     val movie: Boolean = true, val filters: DiscoveryFilters = DiscoveryFilters(),
@@ -181,7 +181,7 @@ class DiscoveryViewModel @Inject constructor(
         val targets=snapshot.visible.drop((index-10).coerceAtLeast(0)).take(30).filter {it.preview.logo.isNullOrBlank()}
         if(targets.isEmpty()) return
         enrichmentJobs += viewModelScope.launch {
-            val enriched=coroutineScope {targets.map {item->async {pool.withPermit {enrich(item.preview,snapshot).copy(serverMatched=item.serverMatched)}}}.awaitAll()}.associateBy {it.preview.id}
+            val enriched=coroutineScope {targets.map {item->async {pool.withPermit {enrich(item.preview,snapshot,serverActorsMatched=item.serverActorsMatched).copy(serverMatched=item.serverMatched,serverActorsMatched=item.serverActorsMatched)}}}.awaitAll()}.associateBy {it.preview.id}
             if(token==generation) {mutable.update {it.copy(items=it.items.map {item->enriched[item.preview.id] ?: item})};render()}
         }
     }
@@ -379,7 +379,8 @@ class DiscoveryViewModel @Inject constructor(
                 skip = pendingSkip
                 retryReset = false
                 val serverMatched = discoveryUsesServerFilters(s.catalog?.catalogId,s.catalog?.addonId,s.includeMissing)
-                val initial = raw.map { p -> DiscoveryItem(p.copy(logo=p.logo ?: discoveryFallbackLogo(p.imdbId ?: p.id)), popularity=popularities[p.id], serverMatched=serverMatched) }
+                val serverActorsMatched=s.movie && s.filters.actors.isNotEmpty() && discoveryHasDiscoverEndpoint(s.catalog?.catalogId,s.catalog?.addonId)
+                val initial = raw.map { p -> DiscoveryItem(p.copy(logo=p.logo ?: discoveryFallbackLogo(p.imdbId ?: p.id)), popularity=popularities[p.id], serverMatched=serverMatched,serverActorsMatched=serverActorsMatched) }
                 mutable.update { it.copy(items=(if(reset) initial else it.items+initial).distinctBy { item -> item.preview.id },
                     loading=false,metadataPending=(if(reset) 0 else it.metadataPending)+raw.size,hasMore=more,page=next,
                     localScope=s.catalog != null || s.includeMissing || s.filters.watched != null || s.sort == DiscoverySort.TITLE || s.sort == DiscoverySort.RUNTIME) }
@@ -388,11 +389,11 @@ class DiscoveryViewModel @Inject constructor(
                 enrichmentJobs.removeAll { it.isCompleted }
                 enrichmentJobs += viewModelScope.launch {
                     val enriched = coroutineScope { raw.map { p -> async { pool.withPermit {
-                        enrich(p,s).copy(popularity=popularities[p.id],serverMatched=serverMatched)
+                        enrich(p,s,serverActorsMatched=serverActorsMatched).copy(popularity=popularities[p.id],serverMatched=serverMatched,serverActorsMatched=serverActorsMatched)
                     } } }.awaitAll() }.associateBy { it.preview.id }
                     if(token == generation) {
                         val metadataFailed=enriched.isNotEmpty() && enriched.values.all {it.details==null}
-                        mutable.update { it.copy(error=if(metadataFailed && !serverMatched && it.filters.needsDetails()) "לא ניתן להשלים את המידע הנדרש לסינון. נסה שוב" else it.error,metadataPending=(it.metadataPending-raw.size).coerceAtLeast(0),items=it.items.map { item -> enriched[item.preview.id] ?: item }) }; render()
+                        mutable.update { it.copy(error=if(metadataFailed && !serverMatched && it.filters.localActorFilters(serverActorsMatched).needsDetails()) "לא ניתן להשלים את המידע הנדרש לסינון. נסה שוב" else it.error,metadataPending=(it.metadataPending-raw.size).coerceAtLeast(0),items=it.items.map { item -> enriched[item.preview.id] ?: item }) }; render()
                     }
                 }
             } catch(e: CancellationException) { throw e } catch(e: Exception) {
@@ -542,8 +543,9 @@ class DiscoveryViewModel @Inject constructor(
         }
     }
     private fun image(path: String?) = path?.let { "https://image.tmdb.org/t/p/w500$it" }
-    private suspend fun enrich(p: MetaPreview, s: DiscoveryState, strict:Boolean=false): DiscoveryItem {
-        val key = "${p.apiType}:${p.id}:${s.titleLanguages.joinToString()}:${s.filters.actors.isNotEmpty()}:${s.filters.keyword != null}:${s.filters.certification != null}:${s.view==DiscoveryView.CLEAR_LOGO}"
+    private suspend fun enrich(p: MetaPreview, s: DiscoveryState, strict:Boolean=false,serverActorsMatched:Boolean=false): DiscoveryItem {
+        val needsCast=s.movie && s.filters.actors.isNotEmpty() && !serverActorsMatched
+        val key = "${p.apiType}:${p.id}:${s.titleLanguages.joinToString()}:$needsCast:${s.filters.keyword != null}:${s.filters.certification != null}:${s.view==DiscoveryView.CLEAR_LOGO}"
         val cacheRevision=metadataCache.revision.value
         synchronized(cache) { cache[key] }?.let { return it }
         try {
@@ -551,7 +553,7 @@ class DiscoveryViewModel @Inject constructor(
                 ?: return DiscoveryItem(p,metadataReady=true)
             val append = buildList { add("translations"); add("images"); add("external_ids")
                 if(s.movie) add("release_dates")
-                if(s.filters.actors.isNotEmpty() && s.movie) add("credits")
+                if(needsCast) add("credits")
                 if(s.filters.keyword != null) add("keywords") }.joinToString(",")
             val kind=if(s.movie) "movie" else "tv"
             val imageLanguages=(s.titleLanguages.filter { it != "original" } + listOf("en","null")).distinct().joinToString(",")
@@ -559,7 +561,11 @@ class DiscoveryViewModel @Inject constructor(
                 TmdbDetailsResponse::class.java,24*60*60*1000L) {
                 val response=api.discoveryDetails(kind,id,apiKey(),s.titleLanguages.firstOrNull { it != "original" },append,imageLanguages)
                 if(!response.isSuccessful) error("TMDB: ${response.code()}")
-                response.body() ?: error("טעינת המטא־דאטה נכשלה")
+                val body=response.body() ?: error("טעינת המטא־דאטה נכשלה")
+                val usefulLanguages=(s.titleLanguages.filter {it!="original"}+listOf("he","en")).toSet()
+                body.copy(images=body.images?.copy(backdrops=null),translations=body.translations?.let {translations ->
+                    translations.copy(translations=translations.translations.filter {it.language in usefulLanguages})
+                })
             }
             val original = d.originalTitle ?: d.originalName ?: p.name
             val translations = d.translations?.translations.orEmpty()
@@ -574,12 +580,12 @@ class DiscoveryViewModel @Inject constructor(
                 try {metadataCache.getOrFetch("v1:$activeProfile:${apiKey()}:images:$kind:$id:$logoLanguages",TmdbImagesResponse::class.java,24*60*60*1000L) {
                     val response=if(s.movie) api.getMovieImages(id,apiKey(),logoLanguages) else api.getTvImages(id,apiKey(),logoLanguages)
                     if(!response.isSuccessful) error("TMDB: ${response.code()}")
-                    response.body() ?: error("תגובה ריקה")
+                    response.body()?.copy(backdrops=null) ?: error("תגובה ריקה")
                 }}
                 catch(e:CancellationException) {throw e} catch(_:Exception) {d.images}
             } else d.images
             val age = if(s.movie) d.releaseDates?.results?.firstOrNull { it.iso31661 == "US" }?.releaseDates?.firstNotNullOfOrNull { it.certification?.takeIf(String::isNotBlank) } else null
-            val actors = if(s.filters.actors.isNotEmpty() && s.movie) d.credits?.cast?.mapNotNull { it.id }?.toSet() else null
+            val actors = if(needsCast) d.credits?.cast?.mapNotNull { it.id }?.toSet() else null
             val keywords = if(s.filters.keyword != null) d.keywords?.let { it.keywords ?: it.results }?.map { it.id }?.toSet() else null
             val imdb = p.imdbId ?: d.externalIds?.imdbId
             val item = DiscoveryItem(p.copy(imdbId=imdb,name=names.firstOrNull(String::isNotBlank) ?: original,
@@ -605,7 +611,8 @@ class DiscoveryViewModel @Inject constructor(
             val filtered = s.items.filter { item ->
                 // TMDB has already applied these criteria. Do not hide valid raw results
                 // while waiting for decorative metadata. Personal membership stays local.
-                val f = if(item.serverMatched) DiscoveryFilters(votes=null,releasedOnly=false,watched=s.filters.watched) else s.filters
+                val f = if(item.serverMatched) DiscoveryFilters(votes=null,releasedOnly=false,watched=s.filters.watched)
+                    else s.filters.localActorFilters(item.serverActorsMatched)
                 val p = item.preview; val d = item.details
                 if(!item.serverMatched && f.needsDetails() && !item.metadataReady) return@filter false
                 val year = p.releaseInfo?.take(4)?.toIntOrNull(); val duration = discoveryRuntimeMinutes(p.runtime)

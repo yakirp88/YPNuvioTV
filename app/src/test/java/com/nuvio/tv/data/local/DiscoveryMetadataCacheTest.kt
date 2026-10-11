@@ -53,4 +53,11 @@ class DiscoveryMetadataCacheTest {
         assertEquals(25,discoveryCacheLimitMb(49));assertEquals(1000,discoveryCacheLimitMb(1100))
         for(value in 0..1000 step 25) assertEquals(value,discoveryCacheLimitMb(value))
     }
+    @Test fun measurementUsesActualDiskUsageAfterSystemCacheCleanup() {
+        val folder=temporary.newFolder();val cache=DiscoveryMetadataDiskCache(folder)
+        cache.write("query","metadata");assertTrue(cache.usedBytes>0)
+        folder.listFiles()!!.single().delete()
+        assertEquals(0L,cache.measure())
+    }
+
 }

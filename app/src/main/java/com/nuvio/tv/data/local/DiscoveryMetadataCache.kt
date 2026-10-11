@@ -31,7 +31,7 @@ class DiscoveryMetadataCache @Inject constructor(
 
     suspend fun measure()=withContext(Dispatchers.IO) {
         disk.configure(preferences.cacheLimitMb.first().toLong()*1024*1024)
-        mutableUsage.value=disk.usedBytes
+        mutableUsage.value=disk.measure()
     }
     suspend fun clear()=withContext(Dispatchers.IO) {
         disk.clear();mutableUsage.value=disk.usedBytes;mutableRevision.value=disk.revision
@@ -79,6 +79,7 @@ internal class DiscoveryMetadataDiskCache(private val directory:File,private val
         }
         initialized=true
     }
+    @Synchronized fun measure():Long {entries.clear();bytes=0;initialized=false;initialize();trim();return bytes}
     @Synchronized fun configure(maxBytes:Long) {initialize();limit=maxBytes.coerceAtLeast(0);trim()}
     private fun remove(name:String) {
         val entry=entries[name] ?: return

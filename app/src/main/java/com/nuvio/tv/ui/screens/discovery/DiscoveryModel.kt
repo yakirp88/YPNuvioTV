@@ -1,6 +1,6 @@
 package com.nuvio.tv.ui.screens.discovery
 
-/** Shared policy for server queries and catalog enrichment. Null means unfiltered. */
+/** Shared query policy. Released titles and a 100-vote sample are enabled by default. */
 data class DiscoveryFilters(
     val yearFrom: Int? = null, val yearTo: Int? = null,
     val genres: Set<Int> = emptySet(), val excludedGenres: Set<Int> = emptySet(),
@@ -152,3 +152,5 @@ fun discoveryServerQuery(movie:Boolean,filters:DiscoveryFilters,sort:DiscoverySo
         put(dateKey,minOf(this[dateKey] ?: today.toString(),today.toString()))
     }
 }
+
+fun DiscoveryFilters.localActorFilters(serverActorsMatched:Boolean) = if(serverActorsMatched) copy(actors=emptyList()) else this

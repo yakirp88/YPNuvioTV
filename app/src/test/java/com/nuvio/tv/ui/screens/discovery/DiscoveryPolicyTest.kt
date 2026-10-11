@@ -26,7 +26,7 @@ class DiscoveryPolicyTest {
         assertEquals(false,existing["destination"])
         assertEquals(result,discoveryAddedMembership(result,"destination"))
     }
-    @Test fun informationDefaultsToTopAndDelayIsBounded() {
+    @Test fun informationDefaultsToTop() {
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition(null))
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("invalid"))
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("MIDDLE"))
@@ -181,6 +181,14 @@ class DiscoveryPolicyTest {
             assertTrue(card*1.5f<=height+.01f)
             assertTrue(card*columns+8f*(columns-1)<=width+.01f)
         }
+    }
+
+    @Test fun serverConfirmedActorResultsAppearWithoutWaitingForDecorativeCredits() {
+        val f=DiscoveryFilters(actors=listOf(DiscoveryChoice("976","Jason Statham")))
+        assertFalse(f.localActorFilters(true).needsDetails())
+        assertTrue(f.localActorFilters(false).needsDetails())
+        assertTrue(f.copy(company=DiscoveryChoice("174","Studio")).localActorFilters(true).needsDetails())
+        assertEquals(100,f.localActorFilters(true).votes);assertTrue(f.localActorFilters(true).releasedOnly)
     }
 
 }

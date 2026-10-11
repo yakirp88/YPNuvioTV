@@ -28,7 +28,7 @@ jobs:
         run: |
           printf '%s\n' "sdk.dir=$ANDROID_HOME" 'INTRODB_API_URL=https://api.introdb.app/' 'DOVI_NATIVE_ENABLED=false' > local.properties
           chmod +x gradlew
-      # Validate bounded metadata disk cache, released/vote defaults and actor query policies.
+      # Validate cache quota/reset and immediate server-confirmed actor results across sorting.
       - name: Build and test
         env:
           CI_USE_DEBUG_SIGNING: true
