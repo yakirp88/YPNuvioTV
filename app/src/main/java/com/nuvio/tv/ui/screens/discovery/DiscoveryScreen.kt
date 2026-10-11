@@ -68,7 +68,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     var overlay by rememberSaveable { mutableStateOf<String?>(null) }
     var lastFilter by rememberSaveable { mutableStateOf("year") }
     var gridFocusedId by remember { mutableStateOf<String?>(null) }
-    var expandedId by remember { mutableStateOf<String?>(null) }
     var showText by rememberSaveable { mutableStateOf(false) }
     var actionItem by remember { mutableStateOf<MetaPreview?>(null) }
     var hint by remember { mutableStateOf<String?>(null) }
@@ -116,12 +115,6 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     }
     BackHandler(s.sourceLabel != null && !showText && overlay == null) { viewModel.restoreSource() }
     BackHandler(showText && overlay == null) { showText = false; firstToolbar.requestFocus() }
-    LaunchedEffect(s.focusedId,s.view,s.expandCards,s.expansionDelay,gridFocusedId,overlay,showText,options.target?.id,s.trailerTitle) {
-        expandedId=null
-        if(discoveryExpansionEnabled(s.view,s.expandCards) && options.target==null && s.trailerTitle==null && overlay==null && !showText && gridFocusedId==s.focusedId && s.focusedId!=null) {
-            delay(s.expansionDelay*1000L);expandedId=s.focusedId
-        }
-    }
     val focused = s.visible.firstOrNull { it.preview.id == s.focusedId } ?: s.visible.firstOrNull()
     val hero=s.heroPreview?.takeIf {it.id==focused?.preview?.id} ?: focused?.preview
     LaunchedEffect(focused?.preview?.id,focused?.preview?.imdbId) { focused?.preview?.id?.let {viewModel.focus(it,true)} }
@@ -186,9 +179,11 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                         side=true,modifier=Modifier.fillMaxHeight().weight(1f))
                 }
                 CompositionLocalProvider(LocalLayoutDirection provides contentDirection) {
-                    Column(Modifier.fillMaxHeight().weight(if(side) 2f else 1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    BoxWithConstraints(Modifier.fillMaxHeight().weight(if(side) 2f else 1f)) {
+                    val topHeight=discoveryTopBarHeight(maxWidth.value,maxHeight.value,columns,s.view).dp
+                    Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                         if(!side) DiscoveryHero(hero,focused?.details?.voteAverage,hasImdb=s.heroPreview!=null || focused?.details==null,
-                            side=false,modifier=Modifier.fillMaxWidth().height(190.dp))
+                            side=false,modifier=Modifier.fillMaxWidth().height(topHeight))
                         if(s.visible.isEmpty() && !s.loading && s.metadataPending==0) Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
                             Column(horizontalAlignment=Alignment.CenterHorizontally) {
                                 Text(if(s.query.isNotBlank()) "אין התאמות בתוצאות שנטענו" else "אין תוצאות עבור הבחירות האלה",color=Color.LightGray)
@@ -196,41 +191,21 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                             }
                         } else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                             val gap=8.dp
-                            val normalWidth=(maxWidth-gap*(columns-1))/columns
+                            val normalWidth=discoveryCardWidth(maxWidth.value,maxHeight.value,columns,s.view).dp
                             val cardHeight=(when(s.view) {
                                 DiscoveryView.POSTERS -> normalWidth*1.5f
                                 DiscoveryView.CLEAR_LOGO -> normalWidth*.45f
                                 DiscoveryView.BANNERS -> normalWidth/3.2f
                                 DiscoveryView.LANDSCAPE -> normalWidth*9f/16f
-                            }).coerceAtMost(maxHeight)
-                            // Each tile keeps a fixed base width. Expansion grows the row instead of squeezing siblings.
+                            })
+                            // A complete row fits vertically; every poster keeps its 2:3 aspect ratio.
                             LazyColumn(state=grid,modifier=Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(gap)) {
                                 items(s.visible.chunked(columns),key={row->row.first().preview.id}) {row ->
-                                    val rowScroll=rememberScrollState()
-                                    val selected=row.indexOfFirst {it.preview.id==gridFocusedId}
-                                    val expandedWidth=discoveryExpandedWidth(normalWidth.value,cardHeight.value).dp
-                                    val density=androidx.compose.ui.platform.LocalDensity.current
-                                    LaunchedEffect(gridFocusedId,expandedId,normalWidth,maxWidth) {
-                                        if(selected>=0) {
-                                            val start=with(density){((normalWidth+gap)*selected).roundToPx()}
-                                            val end=start+with(density){(if(expandedId==gridFocusedId) expandedWidth else normalWidth).roundToPx()}
-                                            val viewport=with(density){maxWidth.roundToPx()}
-                                            val target=when {
-                                                start<rowScroll.value -> start
-                                                end>rowScroll.value+viewport -> end-viewport
-                                                else -> rowScroll.value
-                                            }
-                                            rowScroll.animateScrollTo(target.coerceAtLeast(0))
-                                        }
-                                    }
-                                    Row(Modifier.fillMaxWidth().height(cardHeight).horizontalScroll(rowScroll,enabled=false),horizontalArrangement=Arrangement.spacedBy(gap)) {
+                                    Row(Modifier.fillMaxWidth().height(cardHeight),horizontalArrangement=Arrangement.spacedBy(gap)) {
                                         row.forEach {entry -> key(entry.preview.id) {
                                             val r=remember {FocusRequester()}
-                                            val expanded=expandedId==entry.preview.id
-                                            val cardWidth by animateDpAsState(
-                                                if(expanded) expandedWidth else normalWidth,label="discovery card width")
                                             DisposableEffect(entry.preview.id) {requesters[entry.preview.id]=r;onDispose {requesters.remove(entry.preview.id)}}
-                                            DiscoveryTile(entry.preview,s.view,s.size,Modifier.width(cardWidth).fillMaxHeight().focusRequester(r),expanded=expanded,
+                                            DiscoveryTile(entry.preview,s.view,s.size,Modifier.width(normalWidth).fillMaxHeight().focusRequester(r),fillCards=s.fillCards,
                                                 onFocus={viewModel.focus(entry.preview.id)},
                                                 onFocusState={hasFocus->if(hasFocus) gridFocusedId=entry.preview.id else if(gridFocusedId==entry.preview.id) gridFocusedId=null},
                                                 onClick={navigate(entry.preview)},onHold={actionItem=entry.preview;viewModel.prepareActions(entry.preview);viewModel.posterOptions.show(entry.preview,entry.preview.sourceAddonBaseUrl)})
@@ -240,6 +215,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
@@ -325,7 +301,7 @@ private fun ContentSwitch(movie: Boolean,onClick:()->Unit) {
     }
 }
 @Composable
-private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:Modifier,expanded:Boolean=false,onFocus:()->Unit,onFocusState:(Boolean)->Unit,onClick:()->Unit,onHold:()->Unit) {
+private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:Modifier,fillCards:Boolean=true,onFocus:()->Unit,onFocusState:(Boolean)->Unit,onClick:()->Unit,onHold:()->Unit) {
     var focused by remember {mutableStateOf(false)}
     var longPressTriggered by remember {mutableStateOf(false)}
     val tracker=rememberLongPressKeyTracker()
@@ -342,19 +318,19 @@ private fun DiscoveryTile(p: MetaPreview,view: DiscoveryView,size: Int,modifier:
                 else -> false
             }
         }
-        .clip(shape).background(if(view==DiscoveryView.CLEAR_LOGO && !expanded) background else panel)
+        .clip(shape).background(if(view==DiscoveryView.CLEAR_LOGO) background else panel)
         .border(if(focused) 2.dp else 0.dp,if(focused) accent else Color.Transparent,shape)
         .combinedClickable(onClick={if(longPressTriggered) longPressTriggered=false else onClick()},onLongClick=::hold)
         .semantics {contentDescription=p.name}
     Box(base,contentAlignment=Alignment.Center) {
         var logoFailed by remember(p.logo) {mutableStateOf(false)}
-        if(view==DiscoveryView.CLEAR_LOGO && !expanded) {
+        if(view==DiscoveryView.CLEAR_LOGO) {
             if(!p.logo.isNullOrBlank() && !logoFailed) AsyncImage(p.logo,p.name,Modifier.fillMaxSize().padding(10.dp),contentScale=ContentScale.Fit,onError={logoFailed=true})
             else Text(p.name,Modifier.padding(8.dp),color=com.nuvio.tv.ui.theme.NuvioTheme.colors.TextPrimary,fontSize=13.sp,maxLines=2)
         } else {
-            AsyncImage(if(expanded) p.background ?: p.landscapePoster ?: p.poster else if(view==DiscoveryView.POSTERS) p.poster else p.landscapePoster ?: p.background ?: p.poster,
-                p.name,Modifier.fillMaxSize(),contentScale=if(view==DiscoveryView.POSTERS && !expanded) ContentScale.Fit else ContentScale.Crop)
-            if(view!=DiscoveryView.POSTERS || expanded) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            AsyncImage(if(view==DiscoveryView.POSTERS) p.poster else p.landscapePoster ?: p.background ?: p.poster,
+                p.name,Modifier.fillMaxSize(),contentScale=if(view==DiscoveryView.POSTERS && !fillCards) ContentScale.Fit else ContentScale.Crop)
+            if(view!=DiscoveryView.POSTERS) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.65f))))
                 .padding(6.dp),contentAlignment=Alignment.Center) {
                 if(!p.logo.isNullOrBlank() && !logoFailed) AsyncImage(p.logo,p.name,Modifier.heightIn(max=32.dp).fillMaxWidth(),contentScale=ContentScale.Fit,onError={logoFailed=true})
@@ -446,7 +422,6 @@ private fun ActiveFilters(f:DiscoveryFilters,onChange:(DiscoveryFilters)->Unit) 
         if(f.genres.isNotEmpty()) add("ז׳אנרים (${f.genres.size})" to {onChange(f.copy(genres=emptySet()))})
         if(f.excludedGenres.isNotEmpty()) add("ז׳אנרים מוחרגים" to {onChange(f.copy(excludedGenres=emptySet()))})
         if(f.scoreFrom!=null || f.scoreTo!=null) add("ציון" to {onChange(f.copy(scoreFrom=null,scoreTo=null))})
-        f.votes?.let {add("לפחות $it הצבעות" to {onChange(f.copy(votes=null))})}
         f.actors.forEach { a -> add(a.name to {onChange(f.copy(actors=f.actors-a))}) }
         f.company?.let {add(it.name to {onChange(f.copy(company=null))})}
         f.country?.let {add(it to {onChange(f.copy(country=null))})}
@@ -467,6 +442,7 @@ private fun filterKinds(movie:Boolean) = buildList {
     add("company" to "אולפן");add("country" to "מדינה");add("language" to "שפת מקור")
     add("topic" to "נושא וסגנון");add(if(movie) "age" to "דירוג גיל" else "status" to "סטטוס סדרה")
     add("watched" to "מצב צפייה")
+    add("released" to "כבר יצא")
     add("votes" to "לפחות $DISCOVERY_MIN_VOTES הצבעות")
 }
 private val inlineFilterKinds=setOf("genre","topic","age","status","watched")
@@ -489,9 +465,9 @@ private fun FilterMenu(s:DiscoveryState,lastKind:String,overlay:String,onFocusKi
                 CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides direction) {
                     Column(Modifier.weight(1f)) { kinds.forEach { (kind,label) ->
                         Box {
-                            Action(if(kind=="votes") "$label ${if(s.filters.votes!=null) "✓" else "○"}" else label,
-                                {if(kind=="votes") onChange(s.filters.copy(votes=if(s.filters.votes==null) DISCOVERY_MIN_VOTES else null)) else onSelect(kind)},
-                                active=kind=="votes" && s.filters.votes!=null,modifier=Modifier.fillMaxWidth().focusRequester(requesters.getValue(kind))
+                            Action(if(kind in setOf("votes","released")) "$label ${if(if(kind=="votes") s.filters.votes!=null else s.filters.releasedOnly) "✓" else "○"}" else label,
+                                {if(kind=="votes") onChange(s.filters.copy(votes=if(s.filters.votes==null) DISCOVERY_MIN_VOTES else null)) else if(kind=="released") onChange(s.filters.copy(releasedOnly=!s.filters.releasedOnly)) else onSelect(kind)},
+                                active=(kind=="votes" && s.filters.votes!=null) || (kind=="released" && s.filters.releasedOnly),modifier=Modifier.fillMaxWidth().focusRequester(requesters.getValue(kind))
                                 .focusProperties {left=trash}.onFocusChanged {if(it.isFocused) onFocusKind(kind)})
                             if(overlay=="filter:$kind" && kind in inlineFilterKinds) AdjacentMenu(onBack) {
                                 FilterEditor(kind,s,onChange,onLookup)

@@ -20,7 +20,7 @@ import javax.inject.Inject
 
 data class DiscoveryItem(val preview: MetaPreview, val names: List<String> = listOf(preview.name),
     val details: TmdbDetailsResponse? = null, val actors: Set<Int>? = null,
-    val keywordIds: Set<Int>? = null, val popularity: Double? = null, val serverMatched: Boolean = false)
+    val keywordIds: Set<Int>? = null, val popularity: Double? = null, val serverMatched: Boolean = false, val metadataReady:Boolean=false)
 data class DiscoverySavedCatalog(val key:String,val name:String,val collectionId:String,val count:Int,val onHome:Boolean)
 data class DiscoveryState(
     val movie: Boolean = true, val filters: DiscoveryFilters = DiscoveryFilters(),
@@ -36,8 +36,7 @@ data class DiscoveryState(
     val metadataPending: Int = 0, val exporting: Boolean = false, val exportMessage: String? = null,
     val loading: Boolean = false, val hasMore: Boolean = true, val error: String? = null,
     val includeMissing: Boolean = false, val titleLanguages: List<String> = listOf("he", "en", "original"),
-    val infoPosition: DiscoveryInfoPosition = DiscoveryInfoPosition.TOP, val expansionDelay: Int = 3,
-    val expandCards: Boolean = true, val heroPreview: MetaPreview? = null,
+    val infoPosition: DiscoveryInfoPosition = DiscoveryInfoPosition.TOP, val fillCards: Boolean = true, val heroPreview: MetaPreview? = null,
     val trailerTitle: String? = null, val trailerSource: com.nuvio.tv.data.trailer.TrailerPlaybackSource? = null,
     val trailerLoading: Boolean = false, val trailerError: String? = null, val actionTrailerAvailable: Boolean? = null,
     val sourceLabel: String? = null,
@@ -47,6 +46,7 @@ data class DiscoveryState(
 @HiltViewModel
 class DiscoveryViewModel @Inject constructor(
     private val api: TmdbApi, private val tmdb: TmdbService,
+    private val metadataCache: com.nuvio.tv.data.local.DiscoveryMetadataCache,
     private val addons: AddonRepository, private val catalogs: CatalogRepository,
     private val collectionsStore: com.nuvio.tv.data.local.CollectionsDataStore,
     private val layoutPreferences: com.nuvio.tv.data.local.LayoutPreferenceDataStore,
@@ -94,6 +94,7 @@ class DiscoveryViewModel @Inject constructor(
 
     init {
         posterOptions.bind(viewModelScope)
+        viewModelScope.launch { metadataCache.revision.drop(1).collect { synchronized(cache) {cache.clear()} } }
         viewModelScope.launch {
             preferences.profilePreferences.collect { (profile,p) ->
                 if(activeProfile != profile) {
@@ -109,8 +110,7 @@ class DiscoveryViewModel @Inject constructor(
                     includeMissing = missing,
                     titleLanguages = langs,
                     infoPosition = discoveryInfoPosition(p[stringPreferencesKey("info_position")]),
-                    expansionDelay = discoveryExpansionDelay(p[stringPreferencesKey("expansion_delay")]),
-                    expandCards = p[androidx.datastore.preferences.core.booleanPreferencesKey("expand_cards")] ?: true
+                    fillCards = p[androidx.datastore.preferences.core.booleanPreferencesKey("fill_cards")] ?: true
                 ) }
                 if (!prefsReady) { restoreDisplay(); prefsReady = true }
                 if (reload) { refreshConfiguration();load(reset = true) }
@@ -267,7 +267,8 @@ class DiscoveryViewModel @Inject constructor(
             f.runtimeFrom != null && f.runtimeTo != null && f.runtimeFrom > f.runtimeTo) {
             mutable.update { it.copy(error = "תחילת הטווח חייבת להיות קטנה מסופו") }; return
         }
-        mutable.update { it.copy(filters = f,items=it.items.map { item -> item.copy(serverMatched=false) }) }; render(); if(!relatedSource) load(true, debounce = true)
+        mutable.update { it.copy(filters = f) }
+        if(relatedSource) render() else load(true, debounce = true)
     }
     fun sort(sort: DiscoverySort = mutable.value.sort, descending: Boolean = mutable.value.descending) {
         val kind = if(mutable.value.movie) "movie" else "series"
@@ -391,7 +392,7 @@ class DiscoveryViewModel @Inject constructor(
                     } } }.awaitAll() }.associateBy { it.preview.id }
                     if(token == generation) {
                         val metadataFailed=enriched.isNotEmpty() && enriched.values.all {it.details==null}
-                        mutable.update { it.copy(error=if(metadataFailed && it.filters.active && it.catalog!=null) "לא ניתן להשלים את המידע הנדרש לסינון. נסה שוב" else it.error,metadataPending=(it.metadataPending-raw.size).coerceAtLeast(0),items=it.items.map { item -> enriched[item.preview.id] ?: item }) }; render()
+                        mutable.update { it.copy(error=if(metadataFailed && !serverMatched && it.filters.needsDetails()) "לא ניתן להשלים את המידע הנדרש לסינון. נסה שוב" else it.error,metadataPending=(it.metadataPending-raw.size).coerceAtLeast(0),items=it.items.map { item -> enriched[item.preview.id] ?: item }) }; render()
                     }
                 }
             } catch(e: CancellationException) { throw e } catch(e: Exception) {
@@ -431,21 +432,16 @@ class DiscoveryViewModel @Inject constructor(
                     raw = row.items; more = row.hasMore && c.supportsSkip
                     pendingSkip = offset + raw.size.coerceAtLeast(c.skipStep)
                 } else {
-                    val key = s.sort.serverKey ?: if(s.sort == DiscoverySort.RELEASE) { if(s.movie) "primary_release_date" else "first_air_date" } else "popularity"
-                    val serverQuery=buildMap<String,String> {
-                        if(discoveryUsesServerFilters(s.catalog?.catalogId,s.catalog?.addonId,s.includeMissing)) putAll(s.filters.query(s.movie))
-                        put("language", s.titleLanguages.firstOrNull { it != "original" } ?: "en")
-                        put("page",next.toString()); put("sort_by", "$key.${if(s.descending) "desc" else "asc"}")
-                        put("include_adult","false")
-                        if(s.catalog?.catalogId=="new") {
-                            put("sort_by",if(s.movie) "primary_release_date.desc" else "first_air_date.desc")
-                            put(if(s.movie) "primary_release_date.lte" else "first_air_date.lte",java.time.LocalDate.now().toString())
-                        }
+                    val serverQuery=discoveryServerQuery(s.movie,s.filters,s.sort,s.descending,next,
+                        s.titleLanguages.firstOrNull {it!="original"} ?: "en",s.includeMissing,s.catalog?.catalogId,s.catalog?.addonId)
+                    val kind=if(s.movie) "movie" else "tv"
+                    val pageKey="v1:$activeProfile:${apiKey()}:page:$kind:${s.catalog?.catalogId}:"+serverQuery.toSortedMap().toString()
+                    val data=metadataCache.getOrFetch(pageKey,TmdbDiscoverResponse::class.java,15*60*1000L) {
+                        val response=if(s.catalog?.catalogId=="trending") api.discoveryTrending(kind,apiKey(),next,serverQuery["language"])
+                            else api.discoverContent(kind,apiKey(),serverQuery)
+                        if(!response.isSuccessful) error("TMDB: ${response.code()}")
+                        response.body() ?: error("תגובה ריקה")
                     }
-                    val response=if(s.catalog?.catalogId=="trending") api.discoveryTrending(if(s.movie) "movie" else "tv",apiKey(),next,serverQuery["language"])
-                        else api.discoverContent(if(s.movie) "movie" else "tv",apiKey(),serverQuery)
-                    if(!response.isSuccessful) error("TMDB: ${response.code()}")
-                    val data = response.body() ?: error("תגובה ריקה")
                     limited = (data.totalPages ?: 1)>500
                     more = next < (data.totalPages ?: 1).coerceAtMost(500)
                     raw = data.results.orEmpty().map { r -> MetaPreview("tmdb:${r.id}", if(s.movie) ContentType.MOVIE else ContentType.SERIES,
@@ -521,7 +517,7 @@ class DiscoveryViewModel @Inject constructor(
                         val trusted=discoveryUsesServerFilters(snapshot.catalog?.catalogId,snapshot.catalog?.addonId,snapshot.includeMissing) && !related
                         val f=snapshot.filters
                         val extra=snapshot.query.isNotBlank() || f.watched!=null || f.genres.isNotEmpty() || f.excludedGenres.isNotEmpty() ||
-                            f.votes!=null || f.company!=null || f.country!=null || f.language!=null || f.certification!=null || f.keyword!=null || f.actors.isNotEmpty() || f.status!=null
+                            f.votes!=null || f.releasedOnly || f.company!=null || f.country!=null || f.language!=null || f.certification!=null || f.keyword!=null || f.actors.isNotEmpty() || f.status!=null
                         val items=if(related) snapshot.items else if((trusted && snapshot.query.isBlank() && f.watched==null) || !extra)
                             data.raw.map { DiscoveryItem(it,serverMatched=trusted) }
                         else coroutineScope { data.raw.map { p -> async { pool.withPermit { enrich(p,snapshot,strict=true).copy(serverMatched=trusted) } } }.awaitAll() }
@@ -548,17 +544,23 @@ class DiscoveryViewModel @Inject constructor(
     private fun image(path: String?) = path?.let { "https://image.tmdb.org/t/p/w500$it" }
     private suspend fun enrich(p: MetaPreview, s: DiscoveryState, strict:Boolean=false): DiscoveryItem {
         val key = "${p.apiType}:${p.id}:${s.titleLanguages.joinToString()}:${s.filters.actors.isNotEmpty()}:${s.filters.keyword != null}:${s.filters.certification != null}:${s.view==DiscoveryView.CLEAR_LOGO}"
+        val cacheRevision=metadataCache.revision.value
         synchronized(cache) { cache[key] }?.let { return it }
         try {
             val id = p.id.removePrefix("tmdb:").toIntOrNull() ?: api.findByExternalId(p.imdbId ?: p.id,apiKey()).body()?.let { if(s.movie) it.movieResults?.firstOrNull()?.id else it.tvResults?.firstOrNull()?.id }
-                ?: return DiscoveryItem(p)
+                ?: return DiscoveryItem(p,metadataReady=true)
             val append = buildList { add("translations"); add("images"); add("external_ids")
                 if(s.movie) add("release_dates")
                 if(s.filters.actors.isNotEmpty() && s.movie) add("credits")
                 if(s.filters.keyword != null) add("keywords") }.joinToString(",")
-            val details = api.discoveryDetails(if(s.movie) "movie" else "tv",id,apiKey(),s.titleLanguages.firstOrNull { it != "original" },append,
-                (s.titleLanguages.filter { it != "original" } + listOf("en","null")).distinct().joinToString(","))
-            val d = details.body() ?: if(strict) error("טעינת המטא־דאטה נכשלה; הייצוא לא הושלם") else return DiscoveryItem(p)
+            val kind=if(s.movie) "movie" else "tv"
+            val imageLanguages=(s.titleLanguages.filter { it != "original" } + listOf("en","null")).distinct().joinToString(",")
+            val d=metadataCache.getOrFetch("v1:$activeProfile:${apiKey()}:details:$kind:$id:${s.titleLanguages}:$append:$imageLanguages",
+                TmdbDetailsResponse::class.java,24*60*60*1000L) {
+                val response=api.discoveryDetails(kind,id,apiKey(),s.titleLanguages.firstOrNull { it != "original" },append,imageLanguages)
+                if(!response.isSuccessful) error("TMDB: ${response.code()}")
+                response.body() ?: error("טעינת המטא־דאטה נכשלה")
+            }
             val original = d.originalTitle ?: d.originalName ?: p.name
             val translations = d.translations?.translations.orEmpty()
             val names = s.titleLanguages.map { lang ->
@@ -569,7 +571,11 @@ class DiscoveryViewModel @Inject constructor(
             val imageData = if(d.images?.logos.isNullOrEmpty()) {
                 // Some append responses omit artwork. Reuse the original image endpoint
                 // with the original language, English and language-neutral fallbacks.
-                try { if(s.movie) api.getMovieImages(id,apiKey(),logoLanguages).body() else api.getTvImages(id,apiKey(),logoLanguages).body() }
+                try {metadataCache.getOrFetch("v1:$activeProfile:${apiKey()}:images:$kind:$id:$logoLanguages",TmdbImagesResponse::class.java,24*60*60*1000L) {
+                    val response=if(s.movie) api.getMovieImages(id,apiKey(),logoLanguages) else api.getTvImages(id,apiKey(),logoLanguages)
+                    if(!response.isSuccessful) error("TMDB: ${response.code()}")
+                    response.body() ?: error("תגובה ריקה")
+                }}
                 catch(e:CancellationException) {throw e} catch(_:Exception) {d.images}
             } else d.images
             val age = if(s.movie) d.releaseDates?.results?.firstOrNull { it.iso31661 == "US" }?.releaseDates?.firstNotNullOfOrNull { it.certification?.takeIf(String::isNotBlank) } else null
@@ -582,13 +588,13 @@ class DiscoveryViewModel @Inject constructor(
                 imdbRating=d.voteAverage?.toFloat() ?: p.imdbRating,description=d.overview ?: p.description,genres=d.genres.orEmpty().map { it.name },runtime=(d.runtime ?: d.episodeRunTime?.firstOrNull())?.toString(),
                 released=d.releaseDate ?: d.firstAirDate ?: p.released,releaseInfo=(d.releaseDate ?: d.firstAirDate)?.take(4) ?: p.releaseInfo,language=d.originalLanguage,status=d.status,ageRating=age,country=(d.originCountry.orEmpty()+d.productionCountries.orEmpty().mapNotNull { it.iso31661 }).distinct().takeIf { it.isNotEmpty() }?.joinToString(),voteCount=d.voteCount ?: p.voteCount),
                 (names + searchNames + original + p.name).filter(String::isNotBlank).distinct(),
-                d.copy(images=null,translations=null,externalIds=null,releaseDates=null,credits=null,keywords=null),actors,keywords,d.popularity)
-            synchronized(cache) { cache[key] = item }
+                d.copy(images=null,translations=null,externalIds=null,releaseDates=null,credits=null,keywords=null),actors,keywords,d.popularity,metadataReady=true)
+            if(cacheRevision==metadataCache.revision.value) synchronized(cache) { cache[key] = item }
             return item
         } catch(e: CancellationException) { throw e } catch(e: Exception) {
             android.util.Log.w("Discovery", "Metadata failed for ${p.id}: ${e.javaClass.simpleName}")
             if(strict) throw e
-            return DiscoveryItem(p.copy(logo=p.logo ?: discoveryFallbackLogo(p.imdbId ?: p.id)))
+            return DiscoveryItem(p.copy(logo=p.logo ?: discoveryFallbackLogo(p.imdbId ?: p.id)),metadataReady=true)
         }
     }
     private fun render() { mutable.update(::filteredState) }
@@ -599,13 +605,15 @@ class DiscoveryViewModel @Inject constructor(
             val filtered = s.items.filter { item ->
                 // TMDB has already applied these criteria. Do not hide valid raw results
                 // while waiting for decorative metadata. Personal membership stays local.
-                val f = if(item.serverMatched) DiscoveryFilters(watched=s.filters.watched) else s.filters
+                val f = if(item.serverMatched) DiscoveryFilters(votes=null,releasedOnly=false,watched=s.filters.watched) else s.filters
                 val p = item.preview; val d = item.details
+                if(!item.serverMatched && f.needsDetails() && !item.metadataReady) return@filter false
                 val year = p.releaseInfo?.take(4)?.toIntOrNull(); val duration = discoveryRuntimeMinutes(p.runtime)
                 (s.query.isBlank() || item.names.any { it.contains(s.query.trim(),true) }) &&
                 ((f.yearFrom == null && f.yearTo == null) || accepts(year != null) { year!! >= (f.yearFrom ?: 0) && year <= (f.yearTo ?: 9999) }) &&
                 ((f.scoreFrom == null && f.scoreTo == null) || accepts(p.imdbRating != null) { p.imdbRating!! >= (f.scoreFrom ?: 0.0) && p.imdbRating <= (f.scoreTo ?: 10.0) }) &&
                 discoveryVoteMatches(p.voteCount,f.votes) &&
+                discoveryReleasedMatches(p.released,f.releasedOnly) &&
                 ((f.runtimeFrom == null && f.runtimeTo == null) || accepts(duration != null) { duration!! >= (f.runtimeFrom ?: 0) && duration <= (f.runtimeTo ?: Int.MAX_VALUE) }) &&
                 ((f.genres.isEmpty() && f.excludedGenres.isEmpty()) || accepts(d?.genres != null) { val ids=d!!.genres!!.map { it.id }; f.genres.all { it in ids } && f.excludedGenres.none { it in ids } }) &&
                 (f.country == null || accepts(p.country != null) { p.country!!.split(',').any { it.trim() == f.country } }) &&

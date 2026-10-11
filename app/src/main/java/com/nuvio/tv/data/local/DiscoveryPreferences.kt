@@ -7,6 +7,7 @@ import com.nuvio.tv.core.profile.ProfileManager
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.CoroutineScope
@@ -29,11 +30,11 @@ class DiscoveryPreferences internal constructor(private val factory: ProfileData
     suspend fun tmdbKey(): String? = profilePreferences.first { it.first == profiles.activeProfileId.value }
         .second[stringPreferencesKey("tmdb_key")]?.takeIf { it.isNotBlank() }
     val infoPosition = preferences.map { com.nuvio.tv.ui.screens.discovery.discoveryInfoPosition(it[stringPreferencesKey("info_position")]) }
-    val expandCards = preferences.map { it[booleanPreferencesKey("expand_cards")] ?: true }
-    suspend fun setExpandCards(value: Boolean) { store().edit { it[booleanPreferencesKey("expand_cards")] = value } }
-    val expansionDelay = preferences.map { com.nuvio.tv.ui.screens.discovery.discoveryExpansionDelay(it[stringPreferencesKey("expansion_delay")]) }
+    val fillCards = preferences.map { it[booleanPreferencesKey("fill_cards")] ?: true }
+    suspend fun setFillCards(value: Boolean) { store().edit { it[booleanPreferencesKey("fill_cards")] = value } }
+    val cacheLimitMb = preferences.map { discoveryCacheLimitMb(it[stringPreferencesKey("cache_limit_mb")]?.toIntOrNull()) }.distinctUntilChanged()
+    suspend fun setCacheLimitMb(value: Int) = save("cache_limit_mb",discoveryCacheLimitMb(value).toString())
     suspend fun setInfoPosition(value: com.nuvio.tv.ui.screens.discovery.DiscoveryInfoPosition) = save("info_position",value.name)
-    suspend fun setExpansionDelay(value: Int) = save("expansion_delay",value.coerceIn(0,10).toString())
     val includeMissing = preferences.map { it[booleanPreferencesKey("include_missing")] ?: false }
     val languages = preferences.map { p -> listOf("primary", "secondary", "tertiary").mapIndexed { i, key -> p[stringPreferencesKey(key)] ?: listOf("he", "en", "original")[i] } }
     suspend fun setIncludeMissing(value: Boolean) { store().edit { it[booleanPreferencesKey("include_missing")] = value } }

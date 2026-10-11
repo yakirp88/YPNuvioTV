@@ -154,6 +154,7 @@ private fun LayoutSectionContent(
     val onEvent: (LayoutSettingsEvent) -> Unit = viewModel::onEvent
     when (section) {
         LayoutSection.HOME_LAYOUT -> LayoutHomeLayoutSection(uiState, onEvent)
+        LayoutSection.DISCOVERY -> DiscoverySettingsContent()
         LayoutSection.HOME_CONTENT -> LayoutHomeContentSection(uiState, onEvent)
         LayoutSection.SIDEBAR -> LayoutSidebarSection(uiState, onEvent)
         LayoutSection.CONTINUE_WATCHING -> LayoutContinueWatchingSection(uiState, onEvent)

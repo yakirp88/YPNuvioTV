@@ -31,11 +31,12 @@ internal fun DiscoveryHero(p: MetaPreview?, tmdbScore: Double?, hasImdb: Boolean
     if(side) Column(modifier,verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Spacer(Modifier.fillMaxWidth().height(150.dp))
         HeroInformation(p,tmdbScore,hasImdb,true,Modifier.fillMaxWidth())
-    } else Box(modifier) {
+    } else BoxWithConstraints(modifier.clipToBounds()) {
+        val informationHeight=maxHeight.value
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Box(Modifier.fillMaxSize()) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    HeroInformation(p,tmdbScore,hasImdb,false,Modifier.align(Alignment.CenterEnd).fillMaxWidth(.54f).padding(start=10.dp))
+                    HeroInformation(p,tmdbScore,hasImdb,false,Modifier.align(Alignment.CenterEnd).fillMaxWidth(.54f).padding(start=10.dp),informationHeight)
                 }
             }
         }
@@ -47,7 +48,7 @@ internal fun DiscoveryHero(p: MetaPreview?, tmdbScore: Double?, hasImdb: Boolean
 internal fun DiscoveryHeroArtwork(p:MetaPreview?,side:Boolean,modifier:Modifier=Modifier) {
     val colors=NuvioTheme.colors
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Box(modifier.fillMaxWidth(if(side) 1f/3f else .64f).height(if(side) 230.dp else 266.dp).clipToBounds()) {
+        Box(modifier.fillMaxWidth(if(side) 1f/3f else .64f).height(if(side) 230.dp else 226.dp).clipToBounds()) {
             AsyncImage(discoveryHeroImageUrl(p?.backdropUrl),p?.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
             if(!side) Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Transparent,colors.Background))))
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Transparent,colors.Background))))
@@ -56,14 +57,14 @@ internal fun DiscoveryHeroArtwork(p:MetaPreview?,side:Boolean,modifier:Modifier=
 }
 
 @Composable
-private fun HeroInformation(p:MetaPreview,tmdbScore:Double?,hasImdb:Boolean,side:Boolean,modifier:Modifier) {
+private fun HeroInformation(p:MetaPreview,tmdbScore:Double?,hasImdb:Boolean,side:Boolean,modifier:Modifier,informationHeight:Float=170f) {
     val colors=NuvioTheme.colors
     var failed by remember(p.logo) {mutableStateOf(false)}
     Column(modifier,verticalArrangement=Arrangement.spacedBy(6.dp)) {
         if(!p.logo.isNullOrBlank() && !failed) AsyncImage(p.logo,p.name,
-            Modifier.height(if(side) 58.dp else 48.dp).widthIn(max=220.dp).fillMaxWidth(),
+            Modifier.height(if(side) 58.dp else (informationHeight*.25f).coerceIn(26f,42f).dp).widthIn(max=220.dp).fillMaxWidth(),
             contentScale=ContentScale.Fit,alignment=Alignment.CenterStart,onError={failed=true})
-        else Text(p.name,color=colors.TextPrimary,style=androidx.tv.material3.MaterialTheme.typography.titleLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
+        else Text(p.name,color=colors.TextPrimary,style=androidx.tv.material3.MaterialTheme.typography.titleLarge,maxLines=if(side) 2 else 1,overflow=TextOverflow.Ellipsis)
         val metadata=remember(p.released,p.releaseInfo,p.runtime,p.genres) {
             listOfNotNull(p.released?.take(10) ?: p.releaseInfo,formatHeroRuntime(p.runtime),p.genres.take(2).joinToString(" / ").takeIf {it.isNotBlank()}).joinToString(" · ")
         }
@@ -73,7 +74,7 @@ private fun HeroInformation(p:MetaPreview,tmdbScore:Double?,hasImdb:Boolean,side
             if(hasImdb) p.imdbRating?.takeIf {it>0}?.let {Text("IMDb ${String.format(java.util.Locale.ROOT,"%.1f",it)}",color=colors.TextPrimary,fontSize=11.sp)}
             if(!hasImdb) tmdbScore?.takeIf {it>0}?.let {Text("TMDB ${String.format(java.util.Locale.ROOT,"%.1f",it)}",color=colors.TextSecondary,fontSize=11.sp)}
         }
-        ScrollingSynopsis(p.id,p.description.orEmpty(),if(side) 112 else 72)
+        ScrollingSynopsis(p.id,p.description.orEmpty(),if(side) 112 else (informationHeight-(informationHeight*.25f).coerceIn(26f,42f)-60f).toInt().coerceIn(24,72))
     }
 }
 

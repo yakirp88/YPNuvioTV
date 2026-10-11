@@ -28,7 +28,7 @@ jobs:
         run: |
           printf '%s\n' "sdk.dir=$ANDROID_HOME" 'INTRODB_API_URL=https://api.introdb.app/' 'DOVI_NATIVE_ENABLED=false' > local.properties
           chmod +x gradlew
-      # Validate settings, descending decade lists, vote policy and saved catalog membership.
+      # Validate bounded metadata disk cache, released/vote defaults and actor query policies.
       - name: Build and test
         env:
           CI_USE_DEBUG_SIGNING: true
@@ -42,6 +42,7 @@ jobs:
           --tests "com.nuvio.tv.core.tmdb.TmdbMetadataServiceTest"
           --tests "com.nuvio.tv.data.introdb.*"
           --tests "com.nuvio.tv.data.local.DiscoveryPreferencesTest"
+          --tests "com.nuvio.tv.data.local.DiscoveryMetadataCacheTest"
           --tests "com.nuvio.tv.data.local.CollectionsDataStoreSourceMigrationTest"
           :app:assembleFullRelease --no-daemon --max-workers=1
       - name: Name universal APK

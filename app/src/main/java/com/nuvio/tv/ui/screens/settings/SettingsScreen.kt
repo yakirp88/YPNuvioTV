@@ -928,7 +928,7 @@ private fun ContentDiscoverySettingsContent(
     showPlugins: Boolean,
     initialFocusRequester: FocusRequester?
 ) {
-    var showDisplay by remember { mutableStateOf(false) }
+    var showCache by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)
@@ -937,9 +937,9 @@ private fun ContentDiscoverySettingsContent(
             title = stringResource(R.string.settings_content_discovery),
             subtitle = stringResource(R.string.settings_content_discovery_subtitle)
         )
-        SettingsCollapsibleSection(title="תצוגת תוכן וגילוי",description="שפות, מבנה התצוגה ומידע חסר",
-            expanded=showDisplay,onToggle={showDisplay=!showDisplay},focusRequester=initialFocusRequester) {
-            DiscoverySettingsContent()
+        SettingsCollapsibleSection(title="מטמון גילוי",description="מטאדאטה, הגבלת נפח ואיפוס",
+            expanded=showCache,onToggle={showCache=!showCache},focusRequester=initialFocusRequester) {
+            DiscoveryCacheSettingsContent()
         }
         SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
             SettingsActionRow(

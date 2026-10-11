@@ -21,6 +21,7 @@ internal enum class LayoutSection(
     val icon: ImageVector
 ) {
     HOME_LAYOUT(R.string.layout_section_home, R.string.layout_section_home_desc, Icons.Default.Dashboard),
+    DISCOVERY(R.string.layout_section_discovery, R.string.layout_section_discovery_desc, Icons.Default.PhotoLibrary),
     HOME_CONTENT(R.string.layout_section_content, R.string.layout_section_content_desc, Icons.Default.ViewAgenda),
     SIDEBAR(R.string.layout_section_sidebar, R.string.layout_section_sidebar_desc, Icons.AutoMirrored.Filled.ViewSidebar),
     CONTINUE_WATCHING(R.string.layout_section_continue_watching, R.string.layout_section_continue_watching_desc, Icons.Default.History),

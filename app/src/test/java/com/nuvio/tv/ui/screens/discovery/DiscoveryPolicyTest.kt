@@ -4,10 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscoveryPolicyTest {
-    @Test fun logoNeverExpandsAndNewestDecadeComesFirst() {
-        assertFalse(discoveryExpansionEnabled(DiscoveryView.CLEAR_LOGO,true))
-        assertTrue(discoveryExpansionEnabled(DiscoveryView.POSTERS,true))
-        assertFalse(discoveryExpansionEnabled(DiscoveryView.POSTERS,false))
+    @Test fun newestDecadeComesFirst() {
         assertEquals(2020,discoveryDecades(2026).first())
         assertEquals(2030,discoveryDecades(2031).first())
         assertEquals(1950,discoveryDecades(2026).last())
@@ -35,10 +32,6 @@ class DiscoveryPolicyTest {
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("MIDDLE"))
         assertEquals(DiscoveryInfoPosition.TOP,discoveryInfoPosition("EXPAND"))
         assertEquals(DiscoveryInfoPosition.SIDE,discoveryInfoPosition("SIDE"))
-        assertEquals(3,discoveryExpansionDelay(null))
-        assertEquals(0,discoveryExpansionDelay("-1"))
-        assertEquals(10,discoveryExpansionDelay("15"))
-        assertEquals(0,discoveryExpansionDelay("0"))
     }
     @Test fun genreCycleIsExclusiveAndReturnsToNeutral() {
         val included=DiscoveryFilters().cycleGenre(28)
@@ -85,7 +78,7 @@ class DiscoveryPolicyTest {
         assertFalse(query.containsKey("with_status"))
     }
     @Test fun unsetFiltersNeverBecomeAccidentalEmptyServerConstraints() {
-        assertTrue(DiscoveryFilters().query(true).isEmpty())
+        assertTrue(DiscoveryFilters(votes=null,releasedOnly=false).query(true).isEmpty())
         assertFalse(DiscoveryFilters(allActors=false).active)
         assertTrue(DiscoveryFilters(country="IL").active)
     }
@@ -110,17 +103,13 @@ class DiscoveryPolicyTest {
         assertEquals(4,seen.size)
         assertEquals(DiscoveryView.POSTERS,view)
     }
-    @Test fun everyStyleHasFiveDistinctSizesAndKeepsNeighborsDuringExpansion() {
+    @Test fun everyStyleHasFiveDistinctSizes() {
         for(side in listOf(false,true)) for(style in DiscoveryView.entries) {
             val columns=(0..4).map {discoveryColumns(style,it,side)}
             assertEquals(5,columns.distinct().size)
             assertTrue(columns.all {it>=3})
             assertEquals(columns.last(),discoveryColumns(style,20,side))
-            val baseWidth=960f/columns.last()
-            val extra=discoveryExpandedWidth(baseWidth,baseWidth*1.5f)-baseWidth
-            assertTrue(extra>0f)
-            assertEquals(baseWidth*columns.last()+extra,
-                baseWidth*(columns.last()-1)+discoveryExpandedWidth(baseWidth,baseWidth*1.5f),.01f)
+
         }
     }
     @Test fun decadesFillBothBoundsAndPreserveOtherFilters() {
@@ -152,6 +141,46 @@ class DiscoveryPolicyTest {
         assertEquals("https://image.tmdb.org/t/p/original/logo.png",discoveryLogoUrl("/logo.png"))
         assertEquals("https://addon/logo.png",discoveryLogoUrl("https://addon/logo.png"))
         assertNull(discoveryLogoUrl(""))
+    }
+
+    @Test fun baselineFiltersResetOnAndNeverBecomeActiveChips() {
+        val defaults=DiscoveryFilters()
+        assertEquals(100,defaults.votes);assertTrue(defaults.releasedOnly);assertFalse(defaults.active)
+        assertFalse(defaults.copy(votes=null,releasedOnly=false).active)
+        assertTrue(defaults.copy(country="IL").active)
+    }
+    @Test fun actorQuerySurvivesEverySortAndIncludeMissingWithExactPaging() {
+        val f=DiscoveryFilters(actors=listOf(DiscoveryChoice("976","Jason Statham")))
+        val today=java.time.LocalDate.of(2026,10,11)
+        for(missing in listOf(false,true)) for(descending in listOf(false,true)) for(sort in DiscoverySort.entries) {
+            val query=discoveryServerQuery(true,f,sort,descending,2,"he",missing,today=today)
+            assertEquals("976",query["with_cast"]);assertEquals("2",query["page"])
+            assertEquals("100",query["vote_count.gte"]);assertEquals("2026-10-11",query["primary_release_date.lte"])
+            assertTrue(query.getValue("sort_by").endsWith(if(descending) ".desc" else ".asc"))
+        }
+    }
+    @Test fun releasedFilterIntersectsYearRangeAndUsesFirstAirDateForSeries() {
+        val today=java.time.LocalDate.of(2026,10,11)
+        assertEquals("2026-10-11",DiscoveryFilters(yearTo=2030).query(true,today)["primary_release_date.lte"])
+        assertEquals("1999-12-31",DiscoveryFilters(yearTo=1999).query(true,today)["primary_release_date.lte"])
+        assertEquals("2026-10-11",DiscoveryFilters().query(false,today)["first_air_date.lte"])
+        assertFalse(DiscoveryFilters(releasedOnly=false).query(true,today).containsKey("primary_release_date.lte"))
+        assertTrue(discoveryReleasedMatches("2026-10-11",true,today))
+        assertFalse(discoveryReleasedMatches("2026-10-12",true,today))
+        assertFalse(discoveryReleasedMatches(null,true,today));assertFalse(discoveryReleasedMatches("invalid",true,today))
+        assertTrue(discoveryReleasedMatches(null,false,today))
+    }
+    @Test fun fullPosterRowFitsEvenOnShortViewportAndLargeSizes() {
+        for(side in listOf(false,true)) for(size in 0..4) {
+            val columns=discoveryColumns(DiscoveryView.POSTERS,size,side)
+            val width=if(side) 600f else 900f
+            val top=if(side) 0f else discoveryTopBarHeight(width,360f,columns,DiscoveryView.POSTERS)
+            assertTrue(top<=170f)
+            val height=360f-top-10f
+            val card=discoveryCardWidth(width,height,columns,DiscoveryView.POSTERS)
+            assertTrue(card*1.5f<=height+.01f)
+            assertTrue(card*columns+8f*(columns-1)<=width+.01f)
+        }
     }
 
 }
