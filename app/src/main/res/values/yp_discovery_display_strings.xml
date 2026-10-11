@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="layout_section_discovery">Discovery display</string>
+    <string name="layout_section_discovery">Content &amp; Discovery</string>
     <string name="layout_section_discovery_desc">Discovery layout, card images and title languages.</string>
 </resources>

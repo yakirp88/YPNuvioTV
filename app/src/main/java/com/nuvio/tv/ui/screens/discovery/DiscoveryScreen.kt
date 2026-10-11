@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -71,6 +73,10 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
     var actionItem by remember { mutableStateOf<MetaPreview?>(null) }
     var hint by remember { mutableStateOf<String?>(null) }
     val grid = androidx.compose.foundation.lazy.rememberLazyListState()
+    val cardScrollSpec=remember { object:BringIntoViewSpec {
+        override fun calculateScrollDistance(offset:Float,size:Float,containerSize:Float)=
+            discoveryFocusScrollDistance(offset,size,containerSize)
+    } }
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
     val firstToolbar = remember { FocusRequester() }
     val textFocus = remember { FocusRequester() }
@@ -198,7 +204,8 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                                 DiscoveryView.LANDSCAPE -> normalWidth*9f/16f
                             })
                             // A complete row fits vertically; every poster keeps its 2:3 aspect ratio.
-                            LazyColumn(state=grid,modifier=Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(gap)) {
+                            CompositionLocalProvider(LocalBringIntoViewSpec provides cardScrollSpec) {
+                            LazyColumn(state=grid,modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(gap)) {
                                 items(s.visible.chunked(columns),key={row->row.first().preview.id}) {row ->
                                     Row(Modifier.fillMaxWidth().height(cardHeight),horizontalArrangement=Arrangement.spacedBy(gap)) {
                                         row.forEach {entry -> key(entry.preview.id) {
@@ -211,6 +218,7 @@ fun ContentDiscoveryScreen(onNavigateToDetail: (String, String, String) -> Unit,
                                         repeat(columns-row.size) {Spacer(Modifier.width(normalWidth))}
                                     }
                                 }
+                            }
                             }
                         }
                     }

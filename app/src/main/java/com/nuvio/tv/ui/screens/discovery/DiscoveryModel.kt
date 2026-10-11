@@ -134,10 +134,10 @@ fun DiscoveryFilters.needsDetails() = genres.isNotEmpty() || excludedGenres.isNo
     company!=null || certification!=null || status!=null || actors.isNotEmpty() || keyword!=null || runtimeFrom!=null || runtimeTo!=null
 fun discoveryCardRatio(style:DiscoveryView) = when(style) {DiscoveryView.POSTERS->2f/3f;DiscoveryView.CLEAR_LOGO->1f/.45f;DiscoveryView.BANNERS->3.2f;DiscoveryView.LANDSCAPE->16f/9f}
 fun discoveryCardWidth(availableWidth:Float,availableHeight:Float,columns:Int,style:DiscoveryView):Float =
-    minOf(((availableWidth-8f*(columns-1))/columns).coerceAtLeast(1f), (availableHeight*discoveryCardRatio(style)).coerceAtLeast(1f))
+    minOf(((availableWidth-8f*(columns-1))/columns).coerceAtLeast(1f), ((availableHeight-8f)*discoveryCardRatio(style)).coerceAtLeast(1f))
 fun discoveryTopBarHeight(availableWidth:Float,availableHeight:Float,columns:Int,style:DiscoveryView):Float {
     val row=((availableWidth-8f*(columns-1))/columns)/discoveryCardRatio(style)
-    return minOf(170f,(availableHeight-row-14f).coerceAtLeast(110f))
+    return minOf(145f,(availableHeight-row-22f).coerceAtLeast(100f))
 }
 
 fun discoveryServerQuery(movie:Boolean,filters:DiscoveryFilters,sort:DiscoverySort,descending:Boolean,page:Int,
@@ -154,3 +154,13 @@ fun discoveryServerQuery(movie:Boolean,filters:DiscoveryFilters,sort:DiscoverySo
 }
 
 fun DiscoveryFilters.localActorFilters(serverActorsMatched:Boolean) = if(serverActorsMatched) copy(actors=emptyList()) else this
+
+// Keep the complete focused card visible instead of using the TV default pivot.
+fun discoveryFocusScrollDistance(offset:Float,size:Float,containerSize:Float):Float = when {
+    size>=containerSize -> offset
+    offset<0f -> offset
+    offset+size>containerSize -> offset+size-containerSize
+    else -> 0f
+}
+fun discoveryBatchPages(first:Int,last:Int):List<Int> =
+    if(first>=last) emptyList() else ((first+1)..minOf(first+2,last)).toList()

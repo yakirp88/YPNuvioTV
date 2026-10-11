@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="layout_section_discovery">תצוגת גילוי</string>
+    <string name="layout_section_discovery">תוכן וגילוי</string>
     <string name="layout_section_discovery_desc">מבנה התצוגה, תמונות הכרטיסים ושפות הכותרים.</string>
 </resources>

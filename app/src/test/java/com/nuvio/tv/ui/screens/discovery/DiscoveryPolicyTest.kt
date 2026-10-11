@@ -191,4 +191,17 @@ class DiscoveryPolicyTest {
         assertEquals(100,f.localActorFilters(true).votes);assertTrue(f.localActorFilters(true).releasedOnly)
     }
 
+    @Test fun focusScrollingKeepsFullLargePosterVisible() {
+        assertEquals(0f,discoveryFocusScrollDistance(4f,292f,300f),.001f)
+        assertEquals(-12f,discoveryFocusScrollDistance(-12f,292f,300f),.001f)
+        assertEquals(20f,discoveryFocusScrollDistance(28f,292f,300f),.001f)
+        assertEquals(15f,discoveryFocusScrollDistance(15f,310f,300f),.001f)
+    }
+    @Test fun loadingBatchPreservesCursorAndStopsAtLastPage() {
+        assertEquals(listOf(2,3),discoveryBatchPages(1,500))
+        assertEquals(listOf(5,6),discoveryBatchPages(4,6))
+        assertEquals(listOf(500),discoveryBatchPages(499,500))
+        assertTrue(discoveryBatchPages(500,500).isEmpty())
+        assertTrue(discoveryBatchPages(1,1).isEmpty())
+    }
 }

@@ -372,7 +372,7 @@ class DiscoveryViewModel @Inject constructor(
             val s = mutable.value
             try {
                 if (s.catalog == null && apiKey().isBlank()) error("יש להגדיר מפתח TMDB בהגדרות → אינטגרציות → TMDB")
-                val result=fetchPage(s,if(reset) 1 else s.page+1,skip,reset)
+                val result=fetchBatch(s,if(reset) 1 else s.page+1,skip,reset)
                 val raw=result.raw; val popularities=result.popularities; val pendingSkip=result.skip
                 val more=result.more; val next=result.page
                 if(token != generation) return@launch
@@ -404,13 +404,41 @@ class DiscoveryViewModel @Inject constructor(
             }
         }
     }
-    private data class DiscoveryPage(val raw:List<MetaPreview>,val popularities:Map<String,Double?>,val more:Boolean,val skip:Int,val page:Int,val limited:Boolean=false)
+    private data class DiscoveryPage(val raw:List<MetaPreview>,val popularities:Map<String,Double?>,val more:Boolean,val skip:Int,val page:Int,val limited:Boolean=false,val lastPage:Int=page)
+    private suspend fun fetchBatch(s:DiscoveryState,page:Int,offset:Int,reset:Boolean):DiscoveryPage {
+        val first=fetchPage(s,page,offset,reset)
+        val pages=mutableListOf(first)
+        if(s.catalog==null || s.catalog.addonId=="nuvio.tmdb") {
+            // Fetch up to 60 titles, preserve page order and never request beyond the source limit.
+            val extra=coroutineScope {discoveryBatchPages(first.page,first.lastPage).map {next -> async {
+                try {fetchPage(s,next,first.skip,false)}
+                catch(e:CancellationException){throw e}
+                catch(_:Exception){null}
+            }}.awaitAll()}
+            for(result in extra) {if(result==null) break;pages+=result}
+        } else {
+            // Add-ons have different skip sizes and must advance using the returned cursor.
+            while(pages.sumOf {it.raw.size}<50 && pages.last().more && pages.size<5) {
+                val previous=pages.last()
+                val next=try {fetchPage(s,previous.page+1,previous.skip,false)}
+                    catch(e:CancellationException){throw e}
+                    catch(_:Exception){break}
+                pages+=next
+                if(next.raw.isEmpty()) break
+            }
+        }
+        val last=pages.last()
+        return last.copy(raw=pages.flatMap {it.raw}.distinctBy {it.id},
+            popularities=pages.flatMap {it.popularities.entries}.associate {it.key to it.value},
+            limited=pages.any {it.limited})
+    }
     private suspend fun fetchPage(s:DiscoveryState,page:Int,offsetBase:Int,reset:Boolean):DiscoveryPage {
                 val raw: List<MetaPreview>
                 var popularities = emptyMap<String, Double?>()
                 var limited = false
                 var pendingSkip = offsetBase
                 val next = page
+                var lastPage = page
                 val more: Boolean
                 if(s.catalog != null && s.catalog.addonId != "nuvio.tmdb") {
                     val c = s.catalog
@@ -443,6 +471,7 @@ class DiscoveryViewModel @Inject constructor(
                         if(!response.isSuccessful) error("TMDB: ${response.code()}")
                         response.body() ?: error("תגובה ריקה")
                     }
+                    lastPage=(data.totalPages ?: 1).coerceAtMost(500)
                     limited = (data.totalPages ?: 1)>500
                     more = next < (data.totalPages ?: 1).coerceAtMost(500)
                     raw = data.results.orEmpty().map { r -> MetaPreview("tmdb:${r.id}", if(s.movie) ContentType.MOVIE else ContentType.SERIES,
@@ -451,7 +480,7 @@ class DiscoveryViewModel @Inject constructor(
                         imdbRating=r.voteAverage?.toFloat(),genres=emptyList(),voteCount=r.voteCount,released=r.releaseDate ?: r.firstAirDate) }
                     popularities = data.results.orEmpty().associate { "tmdb:${it.id}" to it.popularity }
                 }
-        return DiscoveryPage(raw,popularities,more,pendingSkip,next,limited)
+        return DiscoveryPage(raw,popularities,more,pendingSkip,next,limited,lastPage)
     }
     fun showSavedCatalogsOnHome(keys:Set<String>) {
         if(mutable.value.catalogActionBusy) return
