@@ -82,6 +82,7 @@ internal class PostPlayRecommendationController(
         val nextEpisodeReleased: String?,
         val hasError: Boolean,
         val hasBlockingInteraction: Boolean,
+        val introReviewPending: Boolean,
         val playbackEnded: Boolean,
         val positionMs: Long,
         val durationMs: Long,
@@ -141,6 +142,7 @@ internal class PostPlayRecommendationController(
                     nextEpisodeReleased = playerState.nextEpisode?.released,
                     hasError = !playerState.error.isNullOrBlank(),
                     hasBlockingInteraction = playerState.blocksPostPlayRecommendation(),
+                    introReviewPending = playerState.introReviewPending,
                     playbackEnded = playerState.playbackEnded,
                     positionMs = timeline.currentPosition,
                     durationMs = timeline.duration,
@@ -238,6 +240,10 @@ internal class PostPlayRecommendationController(
     }
 
     private fun evaluate(snapshot: PlaybackSnapshot) {
+        if (snapshot.introReviewPending) {
+            clearRecommendationState()
+            return
+        }
         // If the player already has an active auto-play (next episode found and queued),
         // recommendations must not appear — clear any in-flight state and bail out.
         if (snapshot.hasActiveAutoPlay) {

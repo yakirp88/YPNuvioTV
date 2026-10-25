@@ -25,14 +25,17 @@ class AppOnboardingDataStore @Inject constructor(
 ) {
     private val dataStore = context.appOnboardingDataStore
     private val hasSeenAuthQrOnFirstLaunchKey = booleanPreferencesKey("has_seen_auth_qr_on_first_launch")
+    private val hasSeenConfiguredYpQrKey = booleanPreferencesKey("yp_configured_qr_v2_seen")
 
     val hasSeenAuthQrOnFirstLaunch: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[hasSeenAuthQrOnFirstLaunchKey] ?: false
+        (prefs[hasSeenAuthQrOnFirstLaunchKey] ?: false) &&
+            (prefs[hasSeenConfiguredYpQrKey] ?: false)
     }
 
     suspend fun setHasSeenAuthQrOnFirstLaunch(value: Boolean) {
         dataStore.edit { prefs ->
             prefs[hasSeenAuthQrOnFirstLaunchKey] = value
+            prefs[hasSeenConfiguredYpQrKey] = value
         }
     }
 }

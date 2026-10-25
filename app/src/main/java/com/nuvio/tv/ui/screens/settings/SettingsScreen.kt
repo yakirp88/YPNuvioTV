@@ -108,7 +108,8 @@ private enum class IntegrationSettingsSection {
     Debrid,
     Tmdb,
     MdbList,
-    AnimeSkip
+    AnimeSkip,
+    IntroDetection
 }
 
 internal enum class SettingsSectionDestination {
@@ -1048,6 +1049,7 @@ private fun IntegrationSettingsContent(
     animeSkipFocusRequester: FocusRequester,
     autoFocusEnabled: Boolean
 ) {
+    val introDetectionFocusRequester = remember { FocusRequester() }
     BackHandler(enabled = selectedSection != IntegrationSettingsSection.Hub) {
         onSelectSection(IntegrationSettingsSection.Hub)
     }
@@ -1061,6 +1063,7 @@ private fun IntegrationSettingsContent(
             IntegrationSettingsSection.Tmdb -> tmdbFocusRequester
             IntegrationSettingsSection.MdbList -> mdbListFocusRequester
             IntegrationSettingsSection.AnimeSkip -> animeSkipFocusRequester
+            IntegrationSettingsSection.IntroDetection -> introDetectionFocusRequester
         }
         runCatching { requester.requestFocus() }
     }
@@ -1120,6 +1123,14 @@ private fun IntegrationSettingsContent(
                                     onClick = { onSelectSection(IntegrationSettingsSection.AnimeSkip) }
                                 )
                             }
+                            item(key = "integration_hub_yp_intro") {
+                                SettingsActionRow(
+                                    title = stringResource(R.string.yp_intro_title),
+                                    subtitle = stringResource(R.string.yp_intro_subtitle),
+                                    leadingIcon = Icons.Default.FastForward,
+                                    onClick = { onSelectSection(IntegrationSettingsSection.IntroDetection) }
+                                )
+                            }
                         }
                         SettingsVerticalScrollIndicators(state = integrationHubState)
                     }
@@ -1149,6 +1160,9 @@ private fun IntegrationSettingsContent(
             AnimeSkipSettingsContent(
                 initialFocusRequester = animeSkipFocusRequester
             )
+        }
+        IntegrationSettingsSection.IntroDetection -> {
+            IntroDetectionSettingsContent(initialFocusRequester = introDetectionFocusRequester)
         }
     }
 }

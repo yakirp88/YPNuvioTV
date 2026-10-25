@@ -24,6 +24,9 @@ interface IntroDbApi {
 
 @JsonClass(generateAdapter = true)
 data class IntroDbSegmentsResponse(
+    @Json(name = "no_intro") val noIntro: Boolean = false,
+    @Json(name = "no_recap") val noRecap: Boolean = false,
+    @Json(name = "no_outro") val noOutro: Boolean = false,
     @Json(name = "imdb_id") val imdbId: String? = null,
     @Json(name = "media_type") val mediaType: String? = null,
     @Json(name = "is_movie") val isMovie: Boolean? = null,

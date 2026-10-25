@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="yp_intro_title">YP Intro Detection</string>
+    <string name="yp_intro_subtitle">Experimental evidence collection for automatic segment detection</string>
+    <string name="yp_intro_collect">Collect subtitle evidence</string>
+    <string name="yp_intro_collect_description">Analyze the selected add-on subtitle in the background. Results stay on this device.</string>
+    <string name="yp_intro_phase_notice">AI suggestions require review. At episode end, confirm the boundary images before sending to IntroDB. Automatic publication remains disabled until detection accuracy is validated.</string>
+    <string name="yp_intro_ai_key">Personal Gemini API key</string>
+    <string name="yp_intro_db_key">Personal IntroDB API key</string>
+    <string name="yp_intro_key_description">Encrypted on this device, separate for each profile</string>
+    <string name="yp_intro_key_saved">Saved</string>
+    <string name="yp_intro_key_dialog">Enter a key to replace it, or choose Clear to remove it. Saving does not test the key or make any API request.</string>
+    <string name="yp_intro_no_evidence">No evidence collected yet. Enable collection, play an episode and select an add-on subtitle.</string>
+    <string name="yp_intro_evidence_count">Latest analysis: %1$d clues. These are observations, not verified skip times.</string>
+    <string name="yp_intro_storage_error">Could not load or save settings. Check the key contains no spaces and try again.</string>
+    <string name="yp_intro_submission_mode">Submission mode</string>
+    <string name="yp_intro_submission_description">Choose automatic submission or image review at the end of the episode</string>
+    <string name="yp_intro_mode_auto">Automatic submission</string>
+    <string name="yp_intro_mode_review">Review at episode end</string>
+    <string name="yp_intro_mode_review_description">Show start and end images for each detected segment, then approve or skip.</string>
+    <string name="yp_intro_mode_auto_description">Submit verified segments automatically when the detection engine is connected. Uncertain results are not sent.</string>
+    <string name="yp_intro_review_title">Review detected segments</string>
+    <string name="yp_intro_review_description">These are AI suggestions, not verified skip times. Check the start and end images, adjust times, and include only segments you can confirm.</string>
+    <string name="yp_intro_review_skip">Continue without sending</string>
+    <string name="yp_intro_review_submit">Approve and submit</string>
+    <string name="yp_intro_review_sending">Sending…</string>
+    <string name="yp_intro_review_failed">Submission failed or its outcome is unknown. Completed segments will not be resent in this session. Continue without sending and check IntroDB before retrying.</string>
+    <string name="yp_intro_type_intro">Opening / theme song</string>
+    <string name="yp_intro_type_recap">Previously on</string>
+    <string name="yp_intro_type_outro">Ending / credits</string>
+    <string name="yp_intro_type_postcredits">Post-credit scene</string>
+    <string name="yp_intro_boundary_start">Segment start</string>
+    <string name="yp_intro_boundary_end">Segment end</string>
+    <string name="yp_intro_preview_pending">Image unavailable — waiting for a matching frame</string>
+    <string name="yp_intro_included">Included</string>
+    <string name="yp_intro_excluded">Excluded</string>
+    <string name="yp_intro_cloud">Cloud AI analysis</string>
+    <string name="yp_intro_cloud_description">Optional: sends selected captions and sampled video images to Google using your personal key. API charges may apply. Off by default.</string>
+    <string name="yp_intro_searching">Locating skip points</string>
+</resources>

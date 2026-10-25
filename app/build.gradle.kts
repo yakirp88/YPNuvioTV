@@ -110,6 +110,10 @@ fun truthy(value: String?): Boolean {
 }
 
 val buildingAppBundle = gradle.startParameter.taskNames.any { it.contains("bundle", ignoreCase = true) }
+val ypVersion = Properties().apply { rootProject.file("yp-version.properties").inputStream().use(::load) }
+val ypVersionName = env("YP_VERSION_NAME") ?: ypVersion.getProperty("versionName")
+val ypVersionCode = (env("YP_VERSION_CODE") ?: ypVersion.getProperty("versionCode")).toInt()
+val ypUniversalOnly = truthy(providers.gradleProperty("ypUniversalOnly").orNull)
 val useDebugReleaseSigning = env("CI_USE_DEBUG_SIGNING").equals("true", ignoreCase = true)
 val useLocalFfmpegDecoder = truthy(
     providers.gradleProperty("useLocalFfmpegDecoder").orNull
@@ -223,7 +227,8 @@ android {
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("release")
+            versionNameSuffix = "-yp-ai.$ypVersionName"
+            signingConfig = signingConfigs.getByName("debug")
             isDebuggable = parseBooleanProperty(providers.gradleProperty("debuggable").orNull)
             isMinifyEnabled = false
 
@@ -303,10 +308,10 @@ android {
 
     splits {
         abi {
-            isEnable = !buildingAppBundle
+            isEnable = !buildingAppBundle && !ypUniversalOnly
             reset()
             include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-            isUniversalApk = true
+            isUniversalApk = !ypUniversalOnly
         }
     }
 
@@ -365,7 +370,8 @@ android {
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         val isPlaystore = variant.productFlavors.any { it.second == "playstore" }
-        variant.applicationId.set(if (isPlaystore) "com.nuvio.appdebug" else "com.nuviodebug.com")
+        variant.applicationId.set(if (isPlaystore) "com.nuvio.app.yp" else "com.nuvio.tv.yp")
+        variant.outputs.forEach { it.versionCode.set(ypVersionCode) }
     }
     // Only the full flavor ships the in-app updater.
     onVariants(selector().withFlavor("distribution" to "full")) { variant ->

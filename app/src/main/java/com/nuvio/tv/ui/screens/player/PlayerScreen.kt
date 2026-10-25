@@ -199,6 +199,22 @@ fun PlayerScreen(
     onOpenPartyMedia: (PartyMedia) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    IntroDetectionIndicator(
+        visible = uiState.introDetectionPhase.showsIndicator() &&
+            !uiState.playbackEnded && uiState.error == null
+    )
+    val introReviewState by viewModel.introReview.state.collectAsState()
+    if (uiState.playbackEnded && uiState.introReviewPending && uiState.error == null && introReviewState.segments.isNotEmpty()) {
+        IntroSegmentReviewDialog(
+            segments = introReviewState.segments,
+            submitting = introReviewState.submitting,
+            submissionFailed = introReviewState.failed,
+            onSelectionChange = viewModel.introReview::select,
+            onAdjustBoundary = viewModel.introReview::adjust,
+            onApproveAndSubmit = viewModel.introReview::submit,
+            onDismiss = viewModel.introReview::dismiss
+        )
+    }
     val playerBadges = rememberPlayerBadges(viewModel, uiState)
     val partyState by viewModel.party.state.collectAsState()
     val partyPlayback by viewModel.party.playback.collectAsState()
@@ -285,7 +301,7 @@ fun PlayerScreen(
         it.hasAired && !(it.released.isNullOrBlank() && it.available == false)
     }
     val shouldConfirmNextEpisodeOnEnd =
-        uiState.playbackEnded &&
+        uiState.playbackEnded && !uiState.introReviewPending &&
             uiState.error == null &&
             (uiState.streamAutoPlayMode != StreamAutoPlayMode.MANUAL ||
                 uiState.streamAutoPlayPreferBingeGroupForNextEpisode) &&
@@ -414,10 +430,12 @@ fun PlayerScreen(
         uiState.error,
         uiState.pendingExitReason,
         shouldConfirmNextEpisodeOnEnd,
-        postPlayRecommendationState.blocksNaturalCompletion
+        postPlayRecommendationState.blocksNaturalCompletion,
+        uiState.introReviewPending
     ) {
+        if (uiState.introReviewPending) return@LaunchedEffect
         val explicitReason = uiState.pendingExitReason
-        val shouldDispatchNatural = uiState.playbackEnded &&
+        val shouldDispatchNatural = uiState.playbackEnded && !uiState.introReviewPending &&
             uiState.error == null &&
             uiState.postPlayMode?.blocksNaturalCompletion() != true &&
             !postPlayRecommendationState.blocksNaturalCompletion &&

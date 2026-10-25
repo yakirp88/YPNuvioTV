@@ -60,6 +60,8 @@ sealed interface PostPlayMode {
 }
 
 data class PlayerUiState(
+    val introReviewPending: Boolean = false,
+    val introDetectionPhase: com.nuvio.tv.core.intro.IntroDetectionPhase = com.nuvio.tv.core.intro.IntroDetectionPhase.IDLE,
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = true,
     val playbackEnded: Boolean = false,

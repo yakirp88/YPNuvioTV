@@ -61,6 +61,8 @@ class PlayerViewModel @Inject constructor(
     private val trackingScrobbleCoordinator: TrackingScrobbleCoordinator,
     private val traktEpisodeMappingService: TraktEpisodeMappingService,
     private val skipIntroRepository: SkipIntroRepository,
+    private val introDetectionStore: com.nuvio.tv.data.local.IntroDetectionStore,
+    private val introDetectionApi: com.nuvio.tv.data.remote.api.IntroDbApi,
     private val playerSettingsDataStore: PlayerSettingsDataStore,
     private val deviceLocalPlayerPreferences: DeviceLocalPlayerPreferences,
     private val streamLinkCacheDataStore: StreamLinkCacheDataStore,
@@ -156,8 +158,11 @@ class PlayerViewModel @Inject constructor(
         scope = viewModelScope
     )
 
+    internal val introReview = IntroReviewSession(controller, introDetectionStore, introDetectionApi, profileManager, viewModelScope)
+
     init {
         controller.bindParty()
+        controller.bindIntroEvidence(introDetectionStore, profileManager, introDetectionApi, introReview)
     }
 
     val party: com.nuvio.tv.core.party.PartyRepository

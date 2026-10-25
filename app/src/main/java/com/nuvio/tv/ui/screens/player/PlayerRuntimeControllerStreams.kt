@@ -1845,6 +1845,7 @@ internal fun PlayerRuntimeController.cancelNextEpisodePreload() {
 }
 
 internal fun PlayerRuntimeController.playNextEpisode(userInitiated: Boolean = false) {
+    if (!userInitiated && _uiState.value.introReviewPending) return
     if (isPartyControlLocked) {
         if (userInitiated) partyBlocksControl()
         return

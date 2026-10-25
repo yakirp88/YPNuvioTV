@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="yp_intro_title">זיהוי מקטעים YP</string>
+    <string name="yp_intro_subtitle">איסוף ראיות ניסיוני לזיהוי מקטעים אוטומטי</string>
+    <string name="yp_intro_collect">איסוף ראיות מכתוביות</string>
+    <string name="yp_intro_collect_description">ניתוח כתוביות התוסף שנבחרו ברקע. התוצאות נשמרות במכשיר הזה.</string>
+    <string name="yp_intro_phase_notice">הצעות ה־AI דורשות בדיקה. בסיום הפרק יש לאשר את תמונות הגבולות לפני השליחה ל־IntroDB. שליחה אוטומטית תישאר חסומה עד לאימות דיוק הזיהוי.</string>
+    <string name="yp_intro_ai_key">מפתח API אישי ל־Gemini</string>
+    <string name="yp_intro_db_key">מפתח API אישי ל־IntroDB</string>
+    <string name="yp_intro_key_description">מוצפן במכשיר, בנפרד לכל פרופיל</string>
+    <string name="yp_intro_key_saved">נשמר</string>
+    <string name="yp_intro_key_dialog">הזן מפתח להחלפה, או בחר ניקוי להסרה. השמירה אינה בודקת את המפתח ואינה מבצעת בקשת API.</string>
+    <string name="yp_intro_no_evidence">עדיין לא נאספו ראיות. הפעל את האיסוף, נגן פרק ובחר כתוביות מתוסף.</string>
+    <string name="yp_intro_evidence_count">הניתוח האחרון: %1$d רמזים. אלו תצפיות, לא זמני דילוג מאומתים.</string>
+    <string name="yp_intro_storage_error">לא ניתן לטעון או לשמור הגדרות. ודא שאין רווחים במפתח ונסה שוב.</string>
+    <string name="yp_intro_submission_mode">מצב שליחת דיווחים</string>
+    <string name="yp_intro_submission_description">בחר שליחה אוטומטית או בדיקה עם תמונות בסיום הפרק</string>
+    <string name="yp_intro_mode_auto">שליחה אוטומטית</string>
+    <string name="yp_intro_mode_review">בדיקה בסיום הפרק</string>
+    <string name="yp_intro_mode_review_description">הצגת תמונת התחלה ותמונת סיום של כל קטע שזוהה, ולאחר מכן אישור או דילוג.</string>
+    <string name="yp_intro_mode_auto_description">שליחת מקטעים מאומתים אוטומטית כאשר מנוע הזיהוי יחובר. תוצאות לא ודאיות לא יישלחו.</string>
+    <string name="yp_intro_review_title">בדיקת המקטעים שזוהו</string>
+    <string name="yp_intro_review_description">אלו הצעות AI ולא זמני דילוג מאומתים. בדוק את תמונות ההתחלה והסיום, תקן זמנים ובחר רק מקטעים שביכולתך לאשר.</string>
+    <string name="yp_intro_review_skip">המשך ללא שליחה</string>
+    <string name="yp_intro_review_submit">אישור ושליחה</string>
+    <string name="yp_intro_review_sending">שולח…</string>
+    <string name="yp_intro_review_failed">השליחה נכשלה או שתוצאתה אינה ידועה. מקטעים שכבר טופלו לא יישלחו שוב באותה הפעלת נגן. המשך ללא שליחה ובדוק ב־IntroDB לפני ניסיון נוסף.</string>
+    <string name="yp_intro_type_intro">פתיח / שיר פתיחה</string>
+    <string name="yp_intro_type_recap">תקציר הפרקים הקודמים</string>
+    <string name="yp_intro_type_outro">סיום / קרדיטים</string>
+    <string name="yp_intro_type_postcredits">סצנה לאחר הקרדיטים</string>
+    <string name="yp_intro_boundary_start">תחילת הקטע</string>
+    <string name="yp_intro_boundary_end">סיום הקטע</string>
+    <string name="yp_intro_preview_pending">התמונה אינה זמינה — ממתין לתמונה התואמת לזמן</string>
+    <string name="yp_intro_included">כלול בדיווח</string>
+    <string name="yp_intro_excluded">לא כלול בדיווח</string>
+    <string name="yp_intro_cloud">ניתוח AI בענן</string>
+    <string name="yp_intro_cloud_description">אפשרות זו שולחת לגוגל כתוביות ותמונות מדגימה של הווידאו באמצעות המפתח האישי. ייתכן חיוב API. כבוי כברירת מחדל.</string>
+    <string name="yp_intro_searching">מאתר נקודות דילוג</string>
+</resources>
