@@ -1,0 +1,9 @@
+<resources>
+    <string name="yp_diagnostics_title">פרטי קריסה / צילום מסך</string>
+    <string name="yp_diagnostics_description">צלם כל עמוד ושלח בצ׳אט, או העתק את הדוח המלא. שום מידע אינו נשלח אוטומטית.</string>
+    <string name="yp_diagnostics_copy">העתקת דוח</string>
+    <string name="yp_diagnostics_copied">הועתק</string>
+    <string name="yp_diagnostics_previous">הקודם</string>
+    <string name="yp_diagnostics_next">הבא</string>
+    <string name="yp_diagnostics_close">סגירה</string>
+</resources>

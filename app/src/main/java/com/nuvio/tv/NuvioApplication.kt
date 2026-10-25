@@ -82,6 +82,7 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         SentryInitializer.start(this, sentrySettingsDataStore)
+        runCatching { com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.install(this) }
         PluginRuntimeHooks.onApplicationCreate(this)
         androidTvChannelSyncService.start()
         serverUserStateProjection.start()

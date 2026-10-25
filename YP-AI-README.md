@@ -38,7 +38,9 @@ This sends the saved key directly to the private repository secret; it does not
 print it or add it to the source. The next source push starts a signed release build.
 
 Without the secret, CI may build a disposable debug APK for checking compilation,
-but it does not publish that APK. Personal AI keys stay on the user's device.
+but it does not publish that APK as a release. A short-lived Actions artifact
+retains it solely as input for private signing with the original saved key.
+Do not install or distribute that intermediate artifact. Personal AI keys stay on the user's device.
 `config/yp-public-client.properties` contains only public anonymous Nuvio client settings.
 
 ## Local build

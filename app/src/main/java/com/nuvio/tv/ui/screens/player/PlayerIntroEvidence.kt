@@ -1,5 +1,6 @@
 package com.nuvio.tv.ui.screens.player
 
+import com.nuvio.tv.core.diagnostics.YpCrashDiagnostics
 import com.nuvio.tv.core.intro.SubtitleEvidenceAnalyzer
 import com.nuvio.tv.core.intro.IntroDetectionPhase
 import com.nuvio.tv.core.profile.ProfileManager
@@ -32,10 +33,13 @@ private data class IntroEvidenceTrack(
 /** Collects a selected sidecar subtitle once its VOD duration is known. Never changes playback. */
 internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStore, profiles: ProfileManager, api: com.nuvio.tv.data.remote.api.IntroDbApi, review: IntroReviewSession) {
     scope.launch {
-        runIntroDetectionSafely(onFailure = {
+        runIntroDetectionSafely(onFailure = { error ->
+            YpCrashDiagnostics.recordFailure(error)
+            YpCrashDiagnostics.markStage("intro_failed")
             review.bind("")
             _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.FAILED) }
         }) {
+            YpCrashDiagnostics.markStage("player_ready")
             val completed = linkedSetOf<String>()
             val checked = mutableMapOf<String, Set<String>>()
             val enabled = combine(store.revision, profiles.activeProfileId) { _, activeId ->
@@ -78,6 +82,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.IDLE) }
                         return@collectLatest
                     }
+                    YpCrashDiagnostics.markStage("intro_lookup")
                     val dbKey = "$imdb:${selected.season}:${selected.episode}:$movie"
                     val missing = checked[dbKey] ?: run {
                         val response = try {
@@ -122,6 +127,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                     // Wait for track/episode transitions to settle. collectLatest cancels obsolete work.
                     try {
                         _uiState.update { it.copy(introDetectionPhase = if (subtitle == null) IntroDetectionPhase.ANALYZING_MEDIA else IntroDetectionPhase.SEARCHING_SUBTITLES) }
+                        YpCrashDiagnostics.markStage("intro_subtitles")
                         delay(750)
                         val body = if (subtitle == null) "" else try { downloadSubtitleBody(subtitle.url, subtitle.lang, subtitle.headers) }
                         catch (cancelled: CancellationException) { throw cancelled }
@@ -153,7 +159,8 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                             }
                             evidenceCues = cues
                             try {
-                                proposals = com.nuvio.tv.core.intro.GeminiIntroAnalyzer.analyze(cloudKey, cues, durationMs, missing)
+                                YpCrashDiagnostics.markStage("intro_cloud")
+                            proposals = com.nuvio.tv.core.intro.GeminiIntroAnalyzer.analyze(cloudKey, cues, durationMs, missing)
                                 cloudStatus = "completed"
                             } catch (cancelled: CancellationException) { throw cancelled }
                             catch (_: Exception) { cloudStatus = "failed" }
@@ -162,7 +169,8 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         if (cloudKey != null && store.cloudKey(profileId) == cloudKey) {
                             _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.ANALYZING_MEDIA) }
                             try {
-                                val frames = com.nuvio.tv.core.intro.VideoEvidenceSampler.sample(
+                                YpCrashDiagnostics.markStage("intro_media")
+                            val frames = com.nuvio.tv.core.intro.VideoEvidenceSampler.sample(
                                     currentStreamUrl, getCurrentHeaders(), durationMs,
                                     missing.any { it == "intro" || it == "recap" },
                                     missing.any { it == "outro" || it == "post-credits" })
@@ -184,7 +192,8 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         if (completed.size > 20) completed.remove(completed.first())
                     } catch (cancelled: CancellationException) {
                         throw cancelled
-                    } catch (_: Exception) {
+                    } catch (error: Exception) {
+                        YpCrashDiagnostics.recordFailure(error)
                         // Optional collection must never interrupt playback or log authenticated URLs.
                     } finally {
                         // Job completion is not proof that its proposed boundaries are accurate.

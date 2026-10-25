@@ -1,0 +1,9 @@
+<resources>
+    <string name="yp_diagnostics_title">Crash diagnostics / screenshot</string>
+    <string name="yp_diagnostics_description">Photograph each page and send it in the chat, or copy the full report. Nothing is sent automatically.</string>
+    <string name="yp_diagnostics_copy">Copy report</string>
+    <string name="yp_diagnostics_copied">Copied</string>
+    <string name="yp_diagnostics_previous">Previous</string>
+    <string name="yp_diagnostics_next">Next</string>
+    <string name="yp_diagnostics_close">Close</string>
+</resources>

@@ -2080,7 +2080,7 @@ fun PlayerScreen(
         IntroDetectionIndicator(
             visible = uiState.introDetectionPhase.showsIndicator() &&
                 !uiState.playbackEnded && uiState.error == null,
-            modifier = Modifier.align(AbsoluteAlignment.TopRight).padding(24.dp).zIndex(4f)
+            modifier = Modifier.align(AbsoluteAlignment.TopLeft).padding(24.dp).zIndex(4f)
         )
 
         if (uiState.showSpeedDialog) {

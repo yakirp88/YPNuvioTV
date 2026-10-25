@@ -4,6 +4,24 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-10-26
+
+### Added
+- Local crash diagnostics after restart and in YP intro-detection settings: paginated TV screenshots and manual copy of the complete sanitized report.
+- Capture Java exception classes and bounded stack frames while preserving the existing system crash handler. Error messages, raw logcat, account/device identifiers, URLs and API keys are omitted.
+- Android 11+ previous-process reason/status and memory summary for native crashes, ANRs and low-memory exits when the OS provides it. Raw OS descriptions and trace streams are never imported.
+- Record the intro-detection stage and safely handled background failures for diagnosis without a full app crash.
+- Privacy, bounds and pagination regression tests.
+
+### Changed
+- Detection ring now appears at the absolute top-left, including Hebrew layouts.
+- Superseded build runs are cancelled so the latest fix can be checked without waiting for obsolete builds.
+
+### Limitations
+- Fatal reports require the new version to be installed before reproducing; Android may supply limited prior-version exit information on an in-place update.
+- Full disk, forced termination and native crashes may prevent a Java report. No report is uploaded automatically.
+- Original signing-secret setup is still required before publishing an update-compatible APK.
+
 ## [0.3.1] — 2026-10-26
 
 ### Fixed

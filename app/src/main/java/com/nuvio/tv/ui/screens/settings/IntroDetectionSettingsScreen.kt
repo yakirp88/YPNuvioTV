@@ -47,6 +47,7 @@ fun IntroDetectionSettingsContent(
     var editingAi by remember { mutableStateOf<Boolean?>(null) }
     var dialogProfile by remember { mutableStateOf(-1) }
     var choosingMode by remember { mutableStateOf(false) }
+    var showingDiagnostics by remember { mutableStateOf(false) }
     LaunchedEffect(state.profileId) { editingAi = null; choosingMode = false }
     val snapshot = state.snapshot
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -60,6 +61,13 @@ fun IntroDetectionSettingsContent(
                 contentPadding = PaddingValues(bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                item {
+                    SettingsActionRow(
+                        title = stringResource(R.string.yp_diagnostics_title),
+                        subtitle = stringResource(R.string.yp_diagnostics_description),
+                        onClick = { showingDiagnostics = true }
+                    )
+                }
                 item {
                     SettingsToggleRow(
                         title = stringResource(R.string.yp_intro_collect),
@@ -157,6 +165,7 @@ fun IntroDetectionSettingsContent(
             )
         }
     }
+    if (showingDiagnostics) YpCrashDiagnosticsDialog(onDismiss = { showingDiagnostics = false })
     editingAi?.let { ai ->
         IntroDetectionKeyDialog(
             ai = ai,
