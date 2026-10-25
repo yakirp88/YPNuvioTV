@@ -4,6 +4,17 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-26
+
+### Fixed
+- Contain exceptions from optional intro-detection settings/preflight reads and its collector, outside the existing per-analysis handler, so they do not terminate the playback coroutine scope.
+- Clear pending AI review and show failed detection state on an optional-session failure. Preserve coroutine cancellation when the player closes.
+
+### Verification
+- Added regression checks for upstream failures, collector failures and cancellation propagation.
+- This is failure isolation, not a confirmed diagnosis of the reported device crash. A device log and playback test are still needed; native decoder/process crashes are not caught by this boundary.
+- A signed update still requires the original repository signing secret. The published 0.2 APK does not include this change.
+
 ### Added
 - Windows helper for private signing-secret configuration and prominent GitHub APK links.
 
