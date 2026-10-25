@@ -21,7 +21,9 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Future debug builds use the YP version metadata and a monotonically increasing CI build number.
 
 ### Limitations
-- Version 0.2 APK import has passed GitHub checksum verification and is published; the new-source build is being validated.
+- Version 0.2 APK import passed GitHub checksum verification and is published.
+- GitHub Actions built the 0.3 source successfully and passed 60 analyzer/review checks.
+- Future APK publication awaits YP_DEBUG_KEYSTORE_BASE64; no disposable-key APK was distributed.
 - Automatic AI submissions remain disabled pending calibration; audio detection is not implemented.
 
 ## [0.2.0] — 2026-10-25
