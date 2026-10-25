@@ -28,6 +28,15 @@ be committed, attached to a public release or put in an Actions cache.
 Using this same certificate preserves the ability to update 0.2 in place.
 The workflow verifies it matches `config/yp-signing-sha256.txt` before distribution.
 
+On Windows, after installing GitHub CLI and running `gh auth login`, run:
+
+```powershell
+powershell -File tools/yp/configure-signing.ps1 -KeystorePath "C:\path\Nuvio-YP-debug-signing.keystore"
+```
+
+This sends the saved key directly to the private repository secret; it does not
+print it or add it to the source. The next source push starts a signed release build.
+
 Without the secret, CI may build a disposable debug APK for checking compilation,
 but it does not publish that APK. Personal AI keys stay on the user's device.
 `config/yp-public-client.properties` contains only public anonymous Nuvio client settings.

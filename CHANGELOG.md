@@ -4,6 +4,9 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+### Added
+- Windows helper for private signing-secret configuration and prominent GitHub APK links.
+
 ### Fixed
 - CI Android SDK setup requests platform-tools explicitly instead of the retired tools package.
 
