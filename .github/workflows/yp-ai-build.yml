@@ -28,6 +28,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
       - name: Configure version and public client
         shell: bash
@@ -50,6 +52,13 @@ jobs:
           expected=$(tr -d '\r\n' < config/yp-signing-sha256.txt)
           actual=$(sha256sum "$RUNNER_TEMP/yp.der" | cut -d ' ' -f 1)
           test "$actual" = "$expected"
+      - name: Validate analyzer and review rules
+        run: |
+          mkdir -p "$RUNNER_TEMP/yp-core-check"
+          javac -d "$RUNNER_TEMP/yp-core-check" \
+            app/src/main/java/com/nuvio/tv/core/intro/{SubtitleEvidenceAnalyzer,IntroSubmissionMode,AiSegmentProposal,IntroDetectionPhase,VideoSamplingPlan,SegmentReviewRange}.java \
+            tools/intro-evidence-check/SubtitleEvidenceCheck.java
+          java -cp "$RUNNER_TEMP/yp-core-check" SubtitleEvidenceCheck
       - name: Test and build universal APK
         shell: bash
         run: |

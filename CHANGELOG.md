@@ -4,6 +4,9 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+### Fixed
+- CI Android SDK setup requests platform-tools explicitly instead of the retired tools package.
+
 ## [0.3.0] — 2026-10-25
 
 ### Added
@@ -15,7 +18,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Future debug builds use the YP version metadata and a monotonically increasing CI build number.
 
 ### Limitations
-- The release pipeline needs its first successful GitHub run before a download can be claimed.
+- Version 0.2 APK import has passed GitHub checksum verification and is published; the new-source build is being validated.
 - Automatic AI submissions remain disabled pending calibration; audio detection is not implemented.
 
 ## [0.2.0] — 2026-10-25
