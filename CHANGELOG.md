@@ -7,6 +7,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 ## [0.3.1] — 2026-10-26
 
 ### Fixed
+- Render the passive detection indicator inside the existing player window rather than creating a separate Android Popup window. Subtitle-only collection reproduces the user report, ruling out a dependency on cloud analysis. The indicator is a candidate, not a proven root cause.
 - Contain exceptions from optional intro-detection settings/preflight reads and its collector, outside the existing per-analysis handler, so they do not terminate the playback coroutine scope.
 - Clear pending AI review and show failed detection state on an optional-session failure. Preserve coroutine cancellation when the player closes.
 

@@ -199,10 +199,6 @@ fun PlayerScreen(
     onOpenPartyMedia: (PartyMedia) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    IntroDetectionIndicator(
-        visible = uiState.introDetectionPhase.showsIndicator() &&
-            !uiState.playbackEnded && uiState.error == null
-    )
     val introReviewState by viewModel.introReview.state.collectAsState()
     if (uiState.playbackEnded && uiState.introReviewPending && uiState.error == null && introReviewState.segments.isNotEmpty()) {
         IntroSegmentReviewDialog(
@@ -2080,6 +2076,12 @@ fun PlayerScreen(
                 }
             )
         }
+
+        IntroDetectionIndicator(
+            visible = uiState.introDetectionPhase.showsIndicator() &&
+                !uiState.playbackEnded && uiState.error == null,
+            modifier = Modifier.align(AbsoluteAlignment.TopRight).padding(24.dp).zIndex(4f)
+        )
 
         if (uiState.showSpeedDialog) {
             SpeedSelectionDialog(
