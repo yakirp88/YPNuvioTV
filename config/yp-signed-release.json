@@ -1,13 +1,13 @@
 {
-  "version": "0.3.7",
-  "source_sha": "a9864e4bf2c624054a3428e78c77a43407e84a33",
-  "sha256": "02daf1b152d86320c41d04c2185e0ff2a4cd188136b27b7a20c21b3ea467c805",
-  "size_bytes": 156029800,
-  "version_code": 500022,
+  "version": "0.3.8",
+  "source_sha": "28fcaed7d5a423238c35bb43f746c3934a8f07ae",
+  "sha256": "86344d76328616ba08945c331c10cde72bee496f314fb0fa4b3b34b2d47d67ab",
+  "size_bytes": 156033896,
+  "version_code": 500023,
   "build_artifact": {
-    "run_id": 40406708157,
-    "name": "yp-ai-signing-input-22"
+    "run_id": 40417257790,
+    "name": "yp-ai-signing-input-23"
   },
-  "release_target_sha": "e9715f9bcae27f447700020d551dcf2ebaf1bd4f",
-  "release_summary": "Independent subtitle acquisition with bounded indexed Matroska text reads, SDH preference, external provider discovery and timing checks. Viewing subtitle changes no longer cancel detection. Adds bounded Google 3.6 Flash fallback after 3.8 availability errors and safe model/source diagnostics. Android build, selected regression suites and 61 analyzer/review checks passed. Actual device extraction, public subtitle provider access and successful Google inference still require device verification. No bitmap OCR or audio detection."
+  "release_target_sha": "f22c4ed1959b81a3d4868a4a418fd81674aad070",
+  "release_summary": "Search independent SDH captions across languages without viewing-addon language filters. Preserves provider SDH/label metadata, reserves independent search capacity, spreads unknown captions across languages, and uses available viewing/embedded timestamp references when container indexes are missing. Adds bounded parallel candidate downloads and individual sanitized timing/description outcomes. Android build, selected regression suites and 61 analyzer/review checks passed. Actual SDH availability, cross-language timing accuracy and detection results require device verification. No OCR, audio analysis or automatic AI reporting."
 }
