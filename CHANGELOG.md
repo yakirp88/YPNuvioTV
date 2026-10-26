@@ -13,6 +13,8 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Classify cloud failures using fixed labels for DNS, TLS, timeout, connection, invalid response/output, output limit and blocked output; never include provider bodies, URLs or keys.
 
 ### Verification
+- Published signed version code 500011 through successful workflow 40305728797; public APK download matched SHA-256 57cc1769d4edd1f5837f2870391bc7609491e9b669946ae14644d3dcc3c045ee.
+- Downloader code 9544137 points to the immutable 0.3.4 APK. Release anchor 831850dd38280d2fbf59d42d1fe1fa368a0f56f9 was verified identical to tested source except approved workflow definitions.
 - GitHub Actions run 40303335843 passed the Android APK build and selected unit suites, including journal continuity and safe failure classification. Passed 61 analyzer/review checks and ICU compatibility checks.
 - The original cloud failure cannot be determined from the uploaded log because the detailed events were lost. A new device run is needed after this fix.
 
