@@ -20,7 +20,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 ### Limitations
 - Fatal reports require the new version to be installed before reproducing; Android may supply limited prior-version exit information on an in-place update.
 - Full disk, forced termination and native crashes may prevent a Java report. No report is uploaded automatically.
-- Original signing-secret setup is still required before publishing an update-compatible APK.
+- Direct CI publication uses the signing secret; private local signing with the original key and verified release import provides an alternative without web sign-in.
 
 ## [0.3.1] — 2026-10-26
 

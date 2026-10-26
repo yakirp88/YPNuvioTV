@@ -3,7 +3,7 @@ name: YP AI build and versioned release
 on:
   push:
     branches: [yp/ai-intro]
-    paths-ignore: ['**/*.md']
+    paths-ignore: ['**/*.md', 'config/yp-signed-release.json']
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,8 @@ jobs:
         with:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Configure version and public client
         shell: bash
         run: |
@@ -103,7 +105,7 @@ jobs:
       - name: Report missing persistent signer
         if: env.SIGNING_KEY == ''
         run: |
-          echo '::warning::Build checked, but publication is disabled until YP_DEBUG_KEYSTORE_BASE64 is configured.'
+          echo '::warning::Build checked. Use the signing-input artifact for private local signing, or configure YP_DEBUG_KEYSTORE_BASE64 for direct CI publication.'
           echo 'No APK distributed with a disposable signing key.' >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing material
         if: always() && env.SIGNING_KEY != ''

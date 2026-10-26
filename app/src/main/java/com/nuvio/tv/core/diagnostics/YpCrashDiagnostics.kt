@@ -51,9 +51,11 @@ internal object YpCrashDiagnostics {
         }
         markStage("app_start")
         scope.launch {
-            runCatching { importSystemExit(previousStage) }
-            val incident = maxOf(preferences.getLong("fatal_at", 0), preferences.getLong("exit_at", 0))
-            if (incident > preferences.getLong("ack_at", 0)) _pendingCrash.value = incident
+            runCatching {
+                importSystemExit(previousStage)
+                val incident = maxOf(preferences.getLong("fatal_at", 0), preferences.getLong("exit_at", 0))
+                if (incident > preferences.getLong("ack_at", 0)) _pendingCrash.value = incident
+            }
         }
     }
 
@@ -75,7 +77,7 @@ internal object YpCrashDiagnostics {
 
     fun acknowledge() {
         if (!::app.isInitialized) return
-        preferences.edit().putLong("ack_at", System.currentTimeMillis()).apply()
+        runCatching { preferences.edit().putLong("ack_at", System.currentTimeMillis()).apply() }
         _pendingCrash.value = null
     }
 

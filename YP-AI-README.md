@@ -67,3 +67,22 @@ Actual TV playback, phone approval and authenticated reporting need device verif
 Commit each completed change to `yp/ai-intro`, update CHANGELOG.md, push, inspect
 the Actions result and verify its release asset before sharing a download link.
 GitHub can build pushed commits automatically; it cannot sync uncommitted local edits.
+
+## Getting a crash report (0.3.2+)
+
+After a crash, reopen the app. If a Java incident or OS exit reason was recorded,
+a paginated diagnostic dialog opens. Photograph each numbered page and send it
+in the chat. The same dialog is available in Settings → YP segment detection →
+Crash diagnostics / screenshot. Copy report copies only the sanitized report to
+the device clipboard; it does not send anything.
+
+The report contains version/code, Android API level, a report ID, stage and
+exception class/stack-frame structure. Exception messages, stream/subtitle URLs,
+headers, API keys, raw logcat and device/account identifiers are omitted. On
+Android 11+, the OS may also supply a native/ANR/low-memory exit summary. It
+cannot reconstruct a full Java trace from a crash before this feature was installed.
+
+When the Actions signing secret is absent, the agent can use the short-lived
+signing-input artifact, sign privately with the original backed-up key, and
+import the checksum- and certificate-verified APK through the signed-release
+workflow. The key must never be included in that input artifact or public files.

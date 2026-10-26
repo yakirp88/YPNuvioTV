@@ -268,3 +268,23 @@ v0.2 universal APK built successfully, passed APK Signature Scheme v2 verificati
 and ZIP CRC validation. Its DEX contains the expected public backend configuration
 and the v2 onboarding migration flag. SHA-256:
 `34d8c1b1b3743222ae9d2c7a6aaee58cc5b4339d8820a0b314b716d3b8e916a2`.
+
+## 0.3.2 crash-diagnosis update
+
+Device feedback: playback works with both detection options off, but crashes with
+subtitle collection on and cloud analysis off. This narrows the issue to the
+local path; no exception trace has yet confirmed its root cause.
+
+The passive ring is now an absolute top-left child of the player Box, rather
+than an Android Popup. Optional coroutine failures are contained, and a local
+sanitized diagnostic report captures class/frame structure without exception
+messages, credentials, transcripts or authenticated URLs. A recovery dialog can
+show a report after restart, and Settings → YP segment detection provides the
+same paginated screenshot/copy view. Android 11+ exit metadata can distinguish
+native/ANR/low-memory terminations when supplied by the OS. No raw OS trace is
+read and nothing is uploaded automatically.
+
+The original 0.2 signer was recovered privately and its certificate fingerprint
+was compared to config/yp-signing-sha256.txt. Local signing followed by a
+checksum/certificate-verified GitHub release import avoids blocking this update
+on web sign-in for Actions secret setup. The key must not appear in artifacts.
