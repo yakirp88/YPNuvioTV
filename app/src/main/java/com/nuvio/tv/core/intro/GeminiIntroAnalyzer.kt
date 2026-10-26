@@ -12,7 +12,6 @@ internal object GeminiIntroAnalyzer {
     class HttpFailure(val status: Int, val reason: String = "provider_unknown") : IOException("Gemini HTTP failure")
     enum class FailureKind { NETWORK, TIMEOUT, DNS, TLS, RESPONSE, OUTPUT, OUTPUT_LIMIT, BLOCKED }
     class Failure(val kind: FailureKind) : IOException("Gemini analysis failure")
-    private const val MODEL = "gemini-3.8-flash"
     private val client = GeminiHttpTransport.client()
 
     /** Explicit user action: a small real inference request, never a model-list shortcut. */
@@ -21,12 +20,13 @@ internal object GeminiIntroAnalyzer {
         val payload = JSONObject().put("contents", JSONArray().put(JSONObject()
             .put("parts", JSONArray().put(JSONObject().put("text", "Reply OK.")))))
             .put("generationConfig", JSONObject().put("maxOutputTokens", 256))
-        val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent")
-            .header("x-goog-api-key", key)
-            .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
-        val text = GeminiHttpTransport.execute(client.newBuilder()
-            .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build(), request)
+        val text = GeminiModelRoute.run(probe = true) { model ->
+            val request = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                .header("x-goog-api-key", key)
+                .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+            GeminiHttpTransport.execute(client.newBuilder().callTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build(), request)
+        }
         val doc = JSONObject(text)
         if (doc.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty().isNotBlank()) throw Failure(FailureKind.BLOCKED)
         if ((doc.optJSONArray("candidates")?.length() ?: 0) == 0) throw Failure(FailureKind.RESPONSE)
@@ -65,6 +65,7 @@ internal object GeminiIntroAnalyzer {
             Requested frame times are approximate; sparse frames cannot prove exact boundaries.
             Return only the requested segment types. Never label generic music or plot as an intro.
             Times are episode-relative integer milliseconds. Do not shift times or extrapolate beyond input.
+            Embedded captions with end_ms=start_ms+1 are timestamp observations, NOT proven end boundaries.
             Do not invent precision. These are provisional suggestions requiring video verification.""".trimIndent()
         val inputParts = JSONArray().put(JSONObject().put("text", JSONObject()
             .put("duration_ms", durationMs).put("requested_types", JSONArray(requestedTypes.toList()))
@@ -79,11 +80,13 @@ internal object GeminiIntroAnalyzer {
             .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", inputParts)))
             .put("generationConfig", JSONObject().put("maxOutputTokens", 4096).put("responseFormat",
                 JSONObject().put("text", JSONObject().put("mimeType", "APPLICATION_JSON").put("schema", schema))))
-        val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent")
-            .header("x-goog-api-key", key)
-            .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
-        val responseText = GeminiHttpTransport.executeWithRetry(client, request)
+        val responseText = GeminiModelRoute.run { model ->
+            val request = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+                .header("x-goog-api-key", key)
+                .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+            GeminiHttpTransport.execute(client, request)
+        }
         val document = JSONObject(responseText)
         if (document.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty().isNotBlank()) throw Failure(FailureKind.BLOCKED)
         val candidates = document.optJSONArray("candidates") ?: throw Failure(FailureKind.RESPONSE)

@@ -31,10 +31,10 @@ internal data class IntroEvidenceTrack(
 
 /** Playback completion is deliberately absent: it must not cancel in-flight analysis. */
 internal fun PlayerUiState.introEvidenceTrack(videoId: String?, fingerprint: String, rendered: Boolean) =
-    IntroEvidenceTrack(selectedAddonSubtitle, videoId, fingerprint, currentSeason, currentEpisode,
-        subtitleDelayMs, isPlaying || rendered)
+    IntroEvidenceTrack(null, videoId, fingerprint, currentSeason, currentEpisode,
+        0, isPlaying || rendered)
 
-/** Collects a selected sidecar subtitle once its VOD duration is known. Never changes playback. */
+/** Collects independent embedded/sidecar evidence once VOD duration is known. Never changes playback. */
 internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStore, profiles: ProfileManager, api: com.nuvio.tv.data.remote.api.IntroDbApi, review: IntroReviewSession) {
     scope.launch {
         runIntroDetectionSafely(onFailure = { error ->
@@ -77,7 +77,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                     YpCrashDiagnostics.logDetectionEvent("settings", metrics = mapOf(
                         "cloud_enabled" to if (on.second != null) 1L else 0L,
                         "review_mode" to if (store.snapshot(profileId).submissionMode == com.nuvio.tv.core.intro.IntroSubmissionMode.REVIEW_AT_EPISODE_END) 1L else 0L,
-                        "duration_ms" to durationMs, "subtitle_selected" to if (subtitle != null) 1L else 0L))
+                        "duration_ms" to durationMs, "subtitle_selected" to if (uiState.value.selectedAddonSubtitle != null) 1L else 0L))
                     review.status("lookup")
                     _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.SEARCHING_SUBTITLES) }
                     val imdb = selected.videoId.substringBefore(':').takeIf { it.matches(Regex("tt[0-9]{7,10}")) }
@@ -119,10 +119,6 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.COMPLETE) }
                         return@collectLatest
                     }
-                    if (subtitle == null) {
-                        _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.SEARCHING_SUBTITLES) }
-                        delay(8000)
-                    }
                     val identity = listOf(
                         selected.videoId, selected.season, selected.episode, selected.streamFingerprint,
                         durationMs, selected.offsetMs, IntroDetectionStore.fingerprint(subtitle?.url.orEmpty())
@@ -136,41 +132,25 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                     }
                     // Wait for track/episode transitions to settle. collectLatest cancels obsolete work.
                     try {
-                        _uiState.update { it.copy(introDetectionPhase = if (subtitle == null) IntroDetectionPhase.ANALYZING_MEDIA else IntroDetectionPhase.SEARCHING_SUBTITLES) }
+                        _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.SEARCHING_SUBTITLES) }
                         review.status("subtitles")
                         YpCrashDiagnostics.markStage("intro_subtitles")
                         delay(750)
-                        val body = if (subtitle == null) "" else try { downloadSubtitleBody(subtitle.url, subtitle.lang, subtitle.headers) }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { "" }
-                        YpCrashDiagnostics.logDetectionEvent("subtitle_download", metrics = mapOf("body_chars" to body.length.toLong()))
-                        // Do not retain transcript, source URL, headers, or credentials in the result cache.
+                        val collectedCues = kotlinx.coroutines.withTimeoutOrNull(75_000) {
+                            collectIntroSubtitles(imdb, selected.season, selected.episode, durationMs)
+                        }.orEmpty()
+                        YpCrashDiagnostics.logDetectionEvent("subtitle_parsed", metrics = mapOf("cue_count" to collectedCues.size.toLong()))
                         val hints = withContext(Dispatchers.Default) {
-                            require(body.length <= 2_000_000) { "Subtitle exceeds evidence collection limit" }
-                            val cues = PlayerSubtitleCueParser.parseFromText(body, subtitle?.url.orEmpty())
-                            YpCrashDiagnostics.logDetectionEvent("subtitle_parsed", metrics = mapOf("cue_count" to cues.size.toLong()))
-                            SubtitleEvidenceAnalyzer.analyze(
-                                cues.map { SubtitleEvidenceAnalyzer.Cue(it.startTimeMs, it.endTimeMs, it.text) },
-                                durationMs,
-                                selected.offsetMs.toLong()
-                            )
+                            SubtitleEvidenceAnalyzer.analyze(collectedCues, durationMs, 0)
                         }
                         currentCoroutineContext().ensureActive()
                         if (profiles.activeProfileId.value != profileId) return@collectLatest
                         var cloudStatus = "not_requested"
                         var proposals = emptyList<com.nuvio.tv.core.intro.AiSegmentProposal>()
-                        var evidenceCues = emptyList<SubtitleEvidenceAnalyzer.Cue>()
+                        val evidenceCues = collectedCues
                         val cloudKey = on.second
-                        if (cloudKey != null && body.isNotBlank() && store.cloudKey(profileId) == cloudKey) {
-                            val cues = withContext(Dispatchers.Default) {
-                                PlayerSubtitleCueParser.parseFromText(body, subtitle?.url.orEmpty()).map {
-                                    com.nuvio.tv.core.intro.SubtitleEvidenceAnalyzer.Cue(
-                                        Math.addExact(it.startTimeMs, selected.offsetMs.toLong()),
-                                        Math.addExact(it.endTimeMs, selected.offsetMs.toLong()), it.text
-                                    )
-                                }
-                            }
-                            evidenceCues = cues
+                        if (cloudKey != null && collectedCues.isNotEmpty() && store.cloudKey(profileId) == cloudKey) {
+                            val cues = collectedCues
                             try {
                                 YpCrashDiagnostics.logDetectionEvent("cloud_request", metrics = mapOf("cue_count" to cues.size.toLong()))
                                 review.status("cloud")
@@ -230,7 +210,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                             isCloudFailureStatus(cloudStatus) || cloudStatus == "media_unavailable" -> cloudStatus
                             cloudKey == null -> "cloud_disabled"
                             store.snapshot(profileId).submissionMode != com.nuvio.tv.core.intro.IntroSubmissionMode.REVIEW_AT_EPISODE_END -> "automatic_unavailable"
-                            body.isBlank() && cloudStatus == "not_requested" -> "no_evidence"
+                            collectedCues.isEmpty() && cloudStatus == "not_requested" -> "no_evidence"
                             else -> "no_proposals"
                         })
                         completed[attemptKey] = review.state.value.status

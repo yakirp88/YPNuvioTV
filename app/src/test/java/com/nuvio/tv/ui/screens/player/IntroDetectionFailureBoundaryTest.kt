@@ -15,6 +15,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IntroDetectionFailureBoundaryTest {
+    @Test fun `subtitle selection cannot cancel independent intro acquisition`() {
+        val state = PlayerUiState(isPlaying = true)
+        val selected = state.copy(selectedAddonSubtitle = com.nuvio.tv.domain.model.Subtitle("s", "https://subtitle.invalid", "en", "test", null), subtitleDelayMs = 2000)
+        assertEquals(state.introEvidenceTrack("tt1234567:1:1", "hash", true), selected.introEvidenceTrack("tt1234567:1:1", "hash", true))
+    }
+
     @Test
     fun `natural completion keeps evidence identity so collectLatest does not cancel work`() {
         val playing = PlayerUiState(isPlaying = true)

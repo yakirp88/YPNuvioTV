@@ -9,7 +9,7 @@ internal object YpCrashReportText {
     private val token = Regex("[A-Za-z0-9_.$<>-]{1,160}")
     private val stages = setOf("app_start", "player_ready", "intro_lookup", "intro_subtitles", "intro_cloud", "intro_media", "intro_complete", "intro_failed")
     fun safeDetectionStatus(value: String): String = value.takeIf {
-        it in setOf("retry_wait", "probe_running", "probe_ok", "missing_key",
+        it in setOf("subtitle_unavailable", "subtitle_ready", "retry_wait", "probe_running", "probe_ok", "missing_key",
             "provider_unknown", "provider_key_invalid", "provider_key_restricted", "provider_service_disabled", "provider_billing", "provider_unavailable", "provider_permission", "provider_quota", "provider_request_invalid", "provider_not_found", "provider_internal",
             "waiting", "lookup", "subtitles", "cloud", "media", "proposals", "already_reported",
             "missing_metadata", "lookup_failed", "cloud_disabled", "no_evidence", "no_proposals",

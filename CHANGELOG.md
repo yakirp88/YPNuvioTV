@@ -4,6 +4,19 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+## [0.3.7] — 2026-10-26
+
+### Changed
+- Detection subtitle acquisition is independent of the displayed subtitle. Changing the viewing subtitle/delay no longer cancels in-flight detection (as happened in device log jVXUZ).
+- Best-effort embedded text extraction from a separate MediaExtractor with bounded HTTP byte ranges (30-second read budget, 32 MiB/128 requests, 2 MiB cache). Samples only beginning/ending windows and never seeks the active player. Image/PGS subtitles require OCR and are not treated as text; unsupported containers/range servers fall back safely.
+- Searches installed subtitle sources and the official public OpenSubtitles v3 provider even when it is not installed. Queries use episode/movie identification, not stream URLs or media credentials. Prefer SDH labels and actual descriptive cues; evaluate candidate timing against embedded indexes before automatic use. Unknown alignment is rejected; a user-selected subtitle retains its explicit delay.
+- Embedded packets without reliable cue ends are timestamp observations (1-ms intervals), explicitly distinguished from exact end boundaries in the AI instructions.
+- Google text-only and visual requests now try the documented Gemini 3.6 Flash model after availability failures on 3.8 Flash. At most three analysis attempts/two probe attempts within overall deadlines; no model fallback for auth, quota or bad requests. Live diagnostics identify model, source selection, extracted counts, descriptions and rejected candidates without raw text/URLs/keys.
+
+### Verification
+- Build and targeted acquisition/model-route/privacy tests pending. Real embedded-container support, subtitle alignment accuracy and Google service access require device testing. The device log shows a real 503/UNAVAILABLE response even for the small probe, not a demonstrated lack of network connectivity.
+- Text extraction remains best effort. No bitmap OCR, audio detector, adaptive video refinement or automatic AI publication is implemented.
+
 ## [0.3.6] — 2026-10-26
 
 ### Distribution

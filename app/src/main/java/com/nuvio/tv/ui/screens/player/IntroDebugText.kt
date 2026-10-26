@@ -51,6 +51,18 @@ internal object IntroDebugText {
         fun t(h: String, e: String) = if (he) h else e
         fun n(key: String) = row.metrics[key] ?: 0
         return when (row.event) {
+            "embedded_scan" -> t("נמצאו ${n("embedded_count")} מסלולי טקסט נתמכים בתוך הקובץ", "Found ${n("embedded_count")} supported text tracks in the file")
+            "embedded_subtitles" -> t("נקראו ${n("cue_count")} תיאורים מתוך ${n("embedded_count")} מסלולי כתוביות בקובץ", "Read ${n("cue_count")} observations from ${n("embedded_count")} embedded text tracks")
+            "subtitle_search" -> t("בודק התאמה של ${n("candidate_count")} כתוביות מתוספים ומחיפוש נוסף", "Checking ${n("candidate_count")} subtitles from add-ons and extra search")
+            "subtitle_choice" -> if (row.status == "subtitle_ready") {
+                val source = when (n("source_code")) { 1L -> t("מובנית בקובץ", "embedded"); 2L -> t("בחירת המשתמש", "user-selected"); else -> t("התאמה אוטומטית", "automatically aligned") }
+                t("נבחרה כתובית: $source, ${n("cue_count")} שורות, ${n("sdh_count")} תיאורים", "Subtitle chosen: $source, ${n("cue_count")} cues, ${n("sdh_count")} descriptions")
+            } else t("לא נמצאה כתובית עם התאמת תזמון מספקת; נפסלו ${n("rejected_count")} מועמדים", "No suitable timed subtitle; ${n("rejected_count")} candidates rejected")
+            "cloud_model", "probe_model" -> {
+                val model = if (n("model_code") == 38L) "Gemini 3.8 Flash" else "Gemini 3.6 Flash"
+                t("בקשת AI אל $model, ניסיון ${n("attempt")}", "AI request to $model, attempt ${n("attempt")}")
+            }
+            "cloud_fallback" -> t("השרת החזיר ${n("http_status")}; עובר ל־Gemini 3.6 Flash, ניסיון ${n("attempt")}", "Server returned ${n("http_status")}; trying Gemini 3.6 Flash, attempt ${n("attempt")}")
             "lookup_result" -> t("בדיקת המאגר הסתיימה: חסרים ${n("missing_count")} סוגי דיווח", "Database checked: ${n("missing_count")} report types missing")
             "subtitle_download" -> if (n("body_chars") == 0L) t("לא נטענו כתוביות לניתוח", "No subtitle text loaded") else t("טקסט הכתוביות נטען", "Subtitle text loaded")
             "subtitle_parsed" -> t("נקראו ${n("cue_count")} שורות כתוביות", "Parsed ${n("cue_count")} subtitle cues")
