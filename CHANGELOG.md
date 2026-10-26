@@ -6,6 +6,10 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [0.3.6] — 2026-10-26
 
+### Distribution
+- Published signed version code 500015 through successful workflow 40381633679. Public APK full download matched SHA-256 22e2463971b525e554c3df8846d14b9e4fb672cce53443383208f198c575d426 (155997032 bytes).
+- Downloader code 5813076 was verified against the immutable GitHub 0.3.6 APK URL. Release anchor bf4674580c05ba79d45f914669c45d091abbcd56 has identical non-workflow source to tested commit 7c173e0d126620a9dda36dbcf708ab9d144ba3ee.
+
 ### Added
 - Player control button toggles a passive top-left live detection panel. Shows plain-language current stage, six recent sanitized actions/results, counts and age of the last update in Hebrew/English; remains visible when player controls hide. No pause, focus capture or automatic upload.
 - A separate cloud-test button appears while debug is enabled. Explicitly sends a tiny text-only inference request (30-second deadline) using the configured key/model; discloses API quota/billing. Success verifies only the small request, not video detection or account tier.
