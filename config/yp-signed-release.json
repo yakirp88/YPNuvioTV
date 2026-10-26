@@ -7,5 +7,6 @@
   "build_artifact": {
     "run_id": 40283797963,
     "name": "yp-ai-signing-input-10"
-  }
+  },
+  "release_target_sha": "0c9d3d2720df591c1b8c9ec96dc82924ed56ca1d"
 }
