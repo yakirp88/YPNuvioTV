@@ -13,7 +13,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Cloud instructions explicitly accept descriptive captions in any language and distinguish named theme/opening clues from ordinary background music.
 
 ### Verification
-- Targeted regression tests and Android build pending. The supplied log completed visual cloud analysis with zero proposals after an earlier text timeout; it does not demonstrate that all cloud requests lack connectivity.
+- GitHub Actions run 40417257790 passed the universal Android build and selected acquisition/model-route/privacy/timeline suites, including independent SDH metadata, language diversity and installed-list starvation regressions. Passed 61 analyzer/review checks and Android ICU compatibility. Device SDH availability, timing accuracy and actual detection results still require verification. The supplied log completed visual cloud analysis with zero proposals after an earlier text timeout; it does not demonstrate that all cloud requests lack connectivity.
 - Provider metadata and cross-language timing vary. No bitmap OCR, unverified-timing submissions, audio analysis or automatic AI reporting is implemented.
 
 ## [0.3.7] — 2026-10-26
