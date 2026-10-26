@@ -21,6 +21,7 @@ import kotlinx.coroutines.withTimeout
 internal data class IntroReviewState(
     val segments: List<IntroReviewSegment> = emptyList(),
     val submitting: Boolean = false,
+    val status: String = "waiting",
     val failed: Boolean = false
 )
 
@@ -46,11 +47,23 @@ internal class IntroReviewSession(
         if (identity == mediaIdentity) return
         jobs.values.forEach { it.cancel() }; jobs.clear()
         submissionJob?.cancel()
+        if (mediaIdentity.isNotEmpty()) com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.beginDetectionLog()
         identity = mediaIdentity
         dismissed = false
         attempted.clear()
         _state.value = IntroReviewState()
         player._uiState.update { it.copy(introReviewPending = false) }
+    }
+
+    fun reserve() {
+        if (dismissed || identity.isEmpty()) return
+        player._uiState.update { it.copy(introReviewPending = true, postPlayMode = null) }
+    }
+
+    fun status(value: String) {
+        if (dismissed) return
+        _state.update { it.copy(status = com.nuvio.tv.core.diagnostics.YpCrashReportText.safeDetectionStatus(value)) }
+        com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.recordDetectionStatus(value)
     }
 
     fun dismiss() {
@@ -63,9 +76,9 @@ internal class IntroReviewSession(
 
     suspend fun offer(mediaIdentity: String, proposals: List<AiSegmentProposal>, durationMs: Long) {
         if (identity != mediaIdentity || dismissed || proposals.isEmpty() ||
-            profiles.activeProfileId.value != player.profileId || player.uiState.value.playbackEnded) return
+            profiles.activeProfileId.value != player.profileId) return
         if (store.snapshot(player.profileId).submissionMode != IntroSubmissionMode.REVIEW_AT_EPISODE_END) return
-        if (identity != mediaIdentity || dismissed || profiles.activeProfileId.value != player.profileId || player.uiState.value.playbackEnded) return
+        if (identity != mediaIdentity || dismissed || profiles.activeProfileId.value != player.profileId) return
         url = player.getCurrentStreamUrl()
         headers = player.getCurrentHeaders().toMap()
         val segments = proposals.map { proposal ->
@@ -79,6 +92,7 @@ internal class IntroReviewSession(
                 }, startMs = proposal.startMs, endMs = proposal.endMs, durationMs = durationMs
             )
         }
+        com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.logDetectionEvent("review_offered", "proposals", mapOf("proposal_count" to segments.size.toLong()))
         _state.value = IntroReviewState(segments)
         player._uiState.update { it.copy(introReviewPending = true, postPlayMode = null) }
         segments.forEach { loadImages(it.id) }

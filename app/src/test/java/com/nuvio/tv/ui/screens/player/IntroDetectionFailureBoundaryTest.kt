@@ -16,6 +16,16 @@ import org.junit.Test
 
 class IntroDetectionFailureBoundaryTest {
     @Test
+    fun `natural completion keeps evidence identity so collectLatest does not cancel work`() {
+        val playing = PlayerUiState(isPlaying = true)
+        val ended = playing.copy(isPlaying = false, playbackEnded = true)
+        assertEquals(playing.introEvidenceTrack("tt1234567:1:1", "hash", true),
+            ended.introEvidenceTrack("tt1234567:1:1", "hash", true))
+        assertTrue(ended.introEvidenceTrack("tt1234567:1:1", "hash", true) !=
+            ended.introEvidenceTrack("tt1234567:1:2", "hash", true))
+    }
+
+    @Test
     fun `preflight read failure does not cancel playback sibling`() = runBlocking {
         coroutineScope {
             val playing = CompletableDeferred<Unit>()

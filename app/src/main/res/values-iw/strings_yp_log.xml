@@ -1,0 +1,7 @@
+<resources>
+    <string name="yp_log_upload">העלאת לוג הזיהוי האחרון</string>
+    <string name="yp_log_upload_busy">מעלה…</string>
+    <string name="yp_log_copy_link">העתקת קישור</string>
+    <string name="yp_log_upload_disclosure">רק יומן הזיהוי המסונן יועלה ל־dpaste.org. כל מי שמחזיק בקישור יוכל לקרוא אותו; נבקש מחיקה לאחר 7 ימים.</string>
+    <string name="yp_log_upload_failed">ההעלאה נכשלה או שאין לוג חדש. נגן פרק ליצירת לוג ונסה שוב. אפשר גם לצלם או להעתיק את הדוח.</string>
+</resources>

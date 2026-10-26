@@ -17,6 +17,7 @@ import org.json.JSONObject
 
 /** Personal-key, opt-in subtitle analysis. No logging, redirects, tools or publication. */
 internal object GeminiIntroAnalyzer {
+    class HttpFailure(val status: Int) : IOException("Gemini HTTP failure")
     private const val MODEL = "gemini-3.8-flash"
     private val client = OkHttpClient.Builder()
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
@@ -107,13 +108,17 @@ internal object GeminiIntroAnalyzer {
             override fun onResponse(call: Call, response: Response) {
                 try {
                     val text = response.use {
-                        check(it.isSuccessful) { "Gemini HTTP ${it.code}" }
+                        if (!it.isSuccessful) throw HttpFailure(it.code)
                         val source = requireNotNull(it.body).source()
                         require(!source.request(262_145)) { "Model response too large" }
                         source.readUtf8()
                     }
                     if (!continuation.isCancelled) continuation.resume(text)
-                } catch (_: Exception) {
+                } catch (error: Exception) {
+                    if (error is HttpFailure) {
+                        if (!continuation.isCancelled) continuation.resumeWithException(error)
+                        return
+                    }
                     if (!continuation.isCancelled) continuation.resumeWithException(IOException("Gemini response rejected"))
                 }
             }

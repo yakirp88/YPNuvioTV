@@ -10,6 +10,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.nuvio.tv.core.diagnostics.DetectionLogUpload
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
@@ -39,6 +42,10 @@ internal fun YpCrashDiagnosticsDialog(onDismiss: () -> Unit) {
     var page by remember { mutableStateOf(0) }
     var copied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    var uploadBusy by remember { mutableStateOf(false) }
+    var uploadFailed by remember { mutableStateOf(false) }
+    var uploadedUrl by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         report = try { YpCrashDiagnostics.report() }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -57,6 +64,25 @@ internal fun YpCrashDiagnosticsDialog(onDismiss: () -> Unit) {
         Text(pages[page.coerceIn(pages.indices)], modifier = Modifier.fillMaxWidth(),
             fontFamily = FontFamily.Monospace, fontSize = 15.sp, lineHeight = 19.sp,
             style = androidx.tv.material3.MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr))
+        Text(stringResource(R.string.yp_log_upload_disclosure), fontSize = 14.sp)
+        uploadedUrl?.let { Text(it, fontFamily = FontFamily.Monospace, fontSize = 20.sp,
+            style = androidx.tv.material3.MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr)) }
+        if (uploadFailed) Text(stringResource(R.string.yp_log_upload_failed))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(enabled = !uploadBusy && uploadedUrl == null, onClick = {
+                uploadBusy = true
+                uploadFailed = false
+                scope.launch {
+                    try { uploadedUrl = DetectionLogUpload.upload() }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { uploadFailed = true }
+                    finally { uploadBusy = false }
+                }
+            }) { Text(stringResource(if (uploadBusy) R.string.yp_log_upload_busy else R.string.yp_log_upload)) }
+            uploadedUrl?.let { url ->
+                Button(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text(stringResource(R.string.yp_log_copy_link)) }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = { page-- }, enabled = page > 0) { Text(stringResource(R.string.yp_diagnostics_previous)) }
             Button(onClick = { page++ }, enabled = page < pages.lastIndex) { Text(stringResource(R.string.yp_diagnostics_next)) }

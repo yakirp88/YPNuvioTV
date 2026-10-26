@@ -75,6 +75,31 @@ internal object YpCrashDiagnostics {
         }
     }
 
+    private val detectionJournal = DetectionJournal()
+
+    fun beginDetectionLog() {
+        if (!::app.isInitialized) return
+        detectionJournal.begin(System.currentTimeMillis())
+        logDetectionEvent("session")
+    }
+
+    fun recordDetectionStatus(status: String) = logDetectionEvent("status", status)
+
+    fun logDetectionEvent(event: String, status: String = "waiting", metrics: Map<String, Long> = emptyMap()) {
+        if (!::app.isInitialized) return
+        detectionJournal.add(event, status, metrics, System.currentTimeMillis())
+        scope.launch { runCatching { synchronized(this@YpCrashDiagnostics) { write("detection.txt", detectionJournal.text(), 24_000) } } }
+    }
+
+    suspend fun latestDetectionLog(): String = withContext(Dispatchers.IO) {
+        check(::app.isInitialized)
+        val text = synchronized(this@YpCrashDiagnostics) {
+            AtomicFile(File(directory, "detection.txt")).readFully().toString(Charsets.UTF_8)
+        }
+        check(text.startsWith("NUVIO YP DETECTION LOG"))
+        "version=${YpCrashReportText.safeToken(BuildConfig.VERSION_NAME)}\nandroid_sdk=${Build.VERSION.SDK_INT}\n" + text.take(24_000)
+    }
+
     fun acknowledge() {
         if (!::app.isInitialized) return
         runCatching { preferences.edit().putLong("ack_at", System.currentTimeMillis()).apply() }
@@ -91,18 +116,18 @@ internal object YpCrashDiagnostics {
             appendLine("current_stage=${YpCrashReportText.safeStage(stage)}")
             appendLine("No API keys, stream URLs or subtitle text included.")
             var found = false
-            for (name in listOf("fatal.txt", "exit.txt", "caught.txt")) {
+            for (name in listOf("fatal.txt", "exit.txt", "caught.txt", "detection.txt")) {
                 val text = runCatching { AtomicFile(File(directory, name)).readFully().toString(Charsets.UTF_8) }.getOrNull()
-                if (text != null) { found = true; appendLine(); appendLine(text.take(7200)) }
+                if (text != null) { found = true; appendLine(); appendLine(text.take(if (name == "detection.txt") 24_000 else 7200)) }
             }
             if (!found) appendLine("No incident recorded yet. Reproduce once, then reopen this screen.")
         }
     }
 
-    private fun write(name: String, text: String) {
+    @Synchronized private fun write(name: String, text: String, limit: Int = 7200) {
         val target = AtomicFile(File(directory, name))
         val stream = target.startWrite()
-        try { stream.write(text.take(7200).toByteArray()); target.finishWrite(stream) }
+        try { stream.write(text.take(limit).toByteArray()); target.finishWrite(stream) }
         catch (failure: Throwable) { target.failWrite(stream); throw failure }
     }
 

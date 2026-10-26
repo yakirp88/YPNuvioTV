@@ -211,6 +211,9 @@ fun PlayerScreen(
             onDismiss = viewModel.introReview::dismiss
         )
     }
+    if (uiState.playbackEnded && uiState.introReviewPending && uiState.error == null && introReviewState.segments.isEmpty()) {
+        IntroDetectionSummaryDialog(introReviewState.status, viewModel.introReview::dismiss)
+    }
     val playerBadges = rememberPlayerBadges(viewModel, uiState)
     val partyState by viewModel.party.state.collectAsState()
     val partyPlayback by viewModel.party.playback.collectAsState()

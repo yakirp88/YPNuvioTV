@@ -8,6 +8,11 @@ import java.util.IdentityHashMap
 internal object YpCrashReportText {
     private val token = Regex("[A-Za-z0-9_.$<>-]{1,160}")
     private val stages = setOf("app_start", "player_ready", "intro_lookup", "intro_subtitles", "intro_cloud", "intro_media", "intro_complete", "intro_failed")
+    fun safeDetectionStatus(value: String): String = value.takeIf {
+        it in setOf("waiting", "lookup", "subtitles", "cloud", "media", "proposals", "already_reported",
+            "missing_metadata", "lookup_failed", "cloud_disabled", "no_evidence", "no_proposals",
+            "analysis_failed", "cloud_failed", "automatic_unavailable", "completed", "visual_completed", "visual_unavailable", "not_requested") || it.matches(Regex("http_[1-5][0-9]{2}"))
+    } ?: "analysis_failed"
     fun safeToken(value: String): String = value.takeIf { token.matches(it) } ?: "redacted"
     fun safeStage(value: String): String = value.takeIf { it in stages } ?: "unknown"
 

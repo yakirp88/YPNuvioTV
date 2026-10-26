@@ -1,0 +1,7 @@
+<resources>
+    <string name="yp_log_upload">Upload latest detection log</string>
+    <string name="yp_log_upload_busy">Uploading…</string>
+    <string name="yp_log_copy_link">Copy link</string>
+    <string name="yp_log_upload_disclosure">Only the sanitized detection log is uploaded to dpaste.org. Anyone with the link can read it; expiry is requested for 7 days.</string>
+    <string name="yp_log_upload_failed">Upload failed or no new log exists. Replay an episode to record a log, then try again. You can still photograph or copy the report.</string>
+</resources>

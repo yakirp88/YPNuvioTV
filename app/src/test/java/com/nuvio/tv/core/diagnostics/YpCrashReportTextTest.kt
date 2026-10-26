@@ -7,6 +7,37 @@ import org.junit.Test
 
 class YpCrashReportTextTest {
     @Test
+    fun `extended journal is bounded and cannot accept free text or credential fields`() {
+        val journal = DetectionJournal()
+        journal.begin(1000)
+        journal.add("subtitle_parsed", "subtitles", mapOf("cue_count" to 17L, "secret_key" to 1234L), 1100)
+        assertTrue(journal.text().contains("cue_count=17"))
+        assertFalse(journal.text().contains("secret_key"))
+        journal.add("https://private?key=secret", "secret", emptyMap(), 1200)
+        repeat(500) { journal.add("status", "http_403", emptyMap(), 1300L + it) }
+        assertTrue(journal.text().lines().size <= 122)
+        assertTrue(journal.text().length < 24000)
+        assertFalse(journal.text().contains("secret"))
+        journal.begin(5000)
+        assertFalse(journal.text().contains("http_403"))
+    }
+
+    @Test
+    fun `upload accepts only public paste links on the selected provider`() {
+        assertTrue(DetectionLogUpload.validLink("https://dpaste.org/Ab12cd"))
+        assertFalse(DetectionLogUpload.validLink("https://evil.example/Ab12cd"))
+        assertFalse(DetectionLogUpload.validLink("https://dpaste.org/Ab12cd?key=secret"))
+    }
+
+    @Test
+    fun `detection status accepts fixed outcomes and HTTP codes only`() {
+        assertEquals("http_403", YpCrashReportText.safeDetectionStatus("http_403"))
+        assertEquals("no_proposals", YpCrashReportText.safeDetectionStatus("no_proposals"))
+        assertEquals("analysis_failed", YpCrashReportText.safeDetectionStatus("AIza_private_key"))
+        assertEquals("analysis_failed", YpCrashReportText.safeDetectionStatus("https://stream?token=secret"))
+    }
+
+    @Test
     fun `report keeps actionable frames but drops messages and suppressed credentials`() {
         val cause = IllegalArgumentException("https://stream.example/video?token=private-secret")
         val error = IllegalStateException("AIza-private-key", cause)

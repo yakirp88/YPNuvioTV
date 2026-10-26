@@ -11,4 +11,4 @@
 - Report build/publication blockers accurately; a workflow definition is not a successful build or published APK.
 
 - Run `python3 tools/intro-evidence-check/check_android_regex.py` when changing subtitle regexes. Desktop JDK regex checks do not cover Android ICU behavior.
-- Crash diagnostics must stay local and structurally allowlisted: never include exception messages, URLs, credentials, transcripts or raw system traces.
+- Crash diagnostics must be structurally allowlisted; only the sanitized detection journal may be uploaded on an explicit settings-button click to dpaste.org (request 7-day expiry). Crash traces stay local. For all diagnostics: never include exception messages, URLs, credentials, transcripts or raw system traces.

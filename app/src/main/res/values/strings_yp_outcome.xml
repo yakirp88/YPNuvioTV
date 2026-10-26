@@ -1,0 +1,14 @@
+<resources>
+    <string name="yp_detection_summary_title">Detection result</string>
+    <string name="yp_detection_running">Analysis is still running. You can wait or close this screen.</string>
+    <string name="yp_detection_existing">Existing IntroDB reports cover the requested segments.</string>
+    <string name="yp_detection_metadata">Missing episode identifiers; analysis could not start.</string>
+    <string name="yp_detection_lookup_failed">Could not check IntroDB. Analysis was deferred to avoid duplicate reports.</string>
+    <string name="yp_detection_cloud_disabled">Cloud analysis is disabled or no key is configured for this profile.</string>
+    <string name="yp_detection_no_evidence">No usable subtitle or video evidence was available.</string>
+    <string name="yp_detection_no_proposals">Analysis returned no supported segment boundaries.</string>
+    <string name="yp_detection_failed">Analysis failed. The status code below helps identify authentication, quota or service errors.</string>
+    <string name="yp_detection_status_code">Diagnostic status: %1$s</string>
+    <string name="yp_detection_diagnostic_hint">Photograph this screen, or open Settings → YP segment detection → Crash diagnostics / screenshot.</string>
+    <string name="yp_detection_automatic_unavailable">Automatic publishing is not available in this experimental version. Select review at episode end to inspect and approve proposals.</string>
+</resources>

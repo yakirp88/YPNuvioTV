@@ -1,0 +1,14 @@
+<resources>
+    <string name="yp_detection_summary_title">תוצאות זיהוי מקטעים</string>
+    <string name="yp_detection_running">הניתוח עדיין פועל. אפשר להמתין או לסגור את המסך.</string>
+    <string name="yp_detection_existing">קיימים ב־IntroDB דיווחים המכסים את סוגי המקטעים המבוקשים.</string>
+    <string name="yp_detection_metadata">חסרים מזהי פרק ולכן הניתוח לא התחיל.</string>
+    <string name="yp_detection_lookup_failed">בדיקת IntroDB נכשלה. הניתוח נדחה כדי למנוע דיווח כפול.</string>
+    <string name="yp_detection_cloud_disabled">ניתוח הענן כבוי או שלא הוגדר מפתח בפרופיל הזה.</string>
+    <string name="yp_detection_no_evidence">לא נמצאו כתוביות או תמונות וידאו שניתן לנתח.</string>
+    <string name="yp_detection_no_proposals">הניתוח לא החזיר גבולות מקטעים הנתמכים בראיות.</string>
+    <string name="yp_detection_failed">הניתוח נכשל. קוד הסטטוס מסייע לזהות שגיאת הרשאות, מכסה או שירות.</string>
+    <string name="yp_detection_status_code">סטטוס לאבחון: %1$s</string>
+    <string name="yp_detection_diagnostic_hint">אפשר לצלם מסך זה, או לפתוח הגדרות ← זיהוי מקטעים YP ← פרטי קריסה / צילום מסך.</string>
+    <string name="yp_detection_automatic_unavailable">שליחה אוטומטית אינה זמינה בגרסה הניסיונית. יש לבחור בדיקה בסיום הפרק כדי לראות ולאשר הצעות.</string>
+</resources>
