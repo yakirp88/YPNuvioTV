@@ -44,7 +44,7 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
                 else -> "response_invalid"
             }
             YpCrashDiagnostics.logDetectionEvent("subtitle_provider", status)
-            emptyList<Subtitle>()
+            emptyList<IntroSubtitleOption>()
         }
     }
     // Reuse the player's installed-provider discovery if it is already in flight.
@@ -67,32 +67,54 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
     val references = index.await()?.tracks.orEmpty().map { it.cues.map { cue -> cue.startTimeMs } }
     val chosen = uiState.value.selectedAddonSubtitle
     val extra = public.await()
-    val pool = (listOfNotNull(chosen) + uiState.value.addonSubtitles + installed + extra).distinctBy { it.url }
-        .sortedByDescending { (if (it.url == chosen?.url) 1000 else 0) + (if (IntroSubtitlePolicy.descriptive(it.id)) 100 else if (it.lang.startsWith("en")) 20 else 0) }
-        .take(8)
-    YpCrashDiagnostics.logDetectionEvent("subtitle_search", metrics = mapOf("candidate_count" to pool.size.toLong()))
+    val pool = IntroSubtitleSearch.candidates(extra,
+        (uiState.value.addonSubtitles + installed).map { IntroSubtitleOption(it) })
+    YpCrashDiagnostics.logDetectionEvent("subtitle_search", metrics = mapOf("candidate_count" to pool.size.toLong(),
+        "discovered_count" to (extra.size + installed.size).toLong(),
+        "language_count" to pool.map { it.subtitle.lang.lowercase() }.distinct().size.toLong()))
     var rejected = 0
-    for (subtitle in pool) {
-        if (System.nanoTime() >= acquisitionDeadline) break
-        val result = optional<List<SubtitleEvidenceAnalyzer.Cue>>(emptyList()) {
-            val body = withTimeoutOrNull(9000) {
-                if (subtitle.url != chosen?.url && extra.any { it.url == subtitle.url } && subtitle.headers.isNullOrEmpty()) PublicIntroSubtitles.download(subtitle.url)
-                else downloadSubtitleBody(subtitle.url, subtitle.lang, subtitle.headers)
-            }.orEmpty()
-            if (body.length > 2_000_000) emptyList() else withContext(Dispatchers.Default) {
-                PlayerSubtitleCueParser.parseFromText(body, subtitle.url)
-                    .take(12_000).map { SubtitleEvidenceAnalyzer.Cue(it.startTimeMs, it.endTimeMs, it.text) }
-            }
+    var checked = 0
+    suspend fun read(subtitle: Subtitle): List<SubtitleEvidenceAnalyzer.Cue> = optional(emptyList()) {
+        val body = withTimeoutOrNull(9000) {
+            if (subtitle.url != chosen?.url && extra.any { it.subtitle.url == subtitle.url } && subtitle.headers.isNullOrEmpty())
+                PublicIntroSubtitles.download(subtitle.url)
+            else downloadSubtitleBody(subtitle.url, subtitle.lang, subtitle.headers)
+        }.orEmpty()
+        if (body.length > 2_000_000) emptyList() else withContext(Dispatchers.Default) {
+            PlayerSubtitleCueParser.parseFromText(body, subtitle.url)
+                .take(12_000).map { SubtitleEvidenceAnalyzer.Cue(it.startTimeMs, it.endTimeMs, it.text) }
         }
-        if (!IntroSubtitlePolicy.valid(result, duration + 120_000)) { rejected++; continue }
-        val selected = subtitle.url == chosen?.url
-        val offset = if (selected) uiState.value.subtitleDelayMs.toLong() else withContext(Dispatchers.Default) { references.firstNotNullOfOrNull {
-            IntroSubtitlePolicy.alignOffset(result, it, duration)
-        } }
-        if (offset == null) { rejected++; continue }
-        val shifted = result.map { SubtitleEvidenceAnalyzer.Cue(it.startMs + offset, it.endMs + offset, it.text) }
-            .filter { it.startMs >= 0 && it.endMs <= duration }
-        candidates += IntroCaptionCandidate(shifted, subtitle.id, false, selected)
+    }
+    // A selected caption is an explicit, user-timed reference. It is never required for discovery.
+    // Use its spoken timestamps too when the media container has no readable subtitle index.
+    val selectedCues = chosen?.let { read(it) }.orEmpty()
+        .map { SubtitleEvidenceAnalyzer.Cue(it.startMs + uiState.value.subtitleDelayMs.toLong(),
+            it.endMs + uiState.value.subtitleDelayMs.toLong(), it.text) }
+        .filter { it.startMs >= 0 && it.endMs <= duration }
+        .takeIf { IntroSubtitlePolicy.valid(it, duration) }.orEmpty()
+    if (selectedCues.isNotEmpty()) candidates += IntroCaptionCandidate(selectedCues, chosen!!.id, false, true)
+    val timingReferences = references + candidates.filter { it.embedded || it.selected }.map { caption ->
+        caption.cues.filter { IntroSubtitlePolicy.descriptionCount(listOf(it)) == 0 }.map { it.startMs }
+    }
+    // Three bounded parallel downloads prevent one slow language from consuming the entire pass.
+    for (batch in pool.filterNot { it.subtitle.url == chosen?.url }.chunked(3)) {
+        if (System.nanoTime() >= acquisitionDeadline) break
+        val loaded = batch.map { option -> async { option to read(option.subtitle) } }.map { it.await() }
+        for ((option, result) in loaded) {
+            checked++
+            val descriptions = IntroSubtitlePolicy.descriptionCount(result)
+            val offset = if (!IntroSubtitlePolicy.valid(result, duration + 120_000)) null else
+                withContext(Dispatchers.Default) { timingReferences.firstNotNullOfOrNull {
+                    IntroSubtitlePolicy.alignOffset(result, it, duration)
+                } }
+            YpCrashDiagnostics.logDetectionEvent("subtitle_candidate", if (offset == null) "subtitle_unavailable" else "subtitle_ready",
+                mapOf("cue_count" to result.size.toLong(), "sdh_count" to descriptions.toLong(),
+                    "source_code" to if (extra.any { it.subtitle.url == option.subtitle.url }) 3L else 2L))
+            if (offset == null) { rejected++; continue }
+            val shifted = result.map { SubtitleEvidenceAnalyzer.Cue(it.startMs + offset, it.endMs + offset, it.text) }
+                .filter { it.startMs >= 0 && it.endMs <= duration }
+            candidates += IntroCaptionCandidate(shifted, option.label, false)
+        }
     }
     val usable = candidates.filter { IntroSubtitlePolicy.valid(it.cues, duration) }
     val best = usable.maxByOrNull { candidate ->
@@ -102,7 +124,7 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
             ((candidate.cues.last().startMs - candidate.cues.first().startMs) * 100 / duration).toInt()
     }
     YpCrashDiagnostics.logDetectionEvent("subtitle_choice", if (best == null) "subtitle_unavailable" else "subtitle_ready",
-        mapOf("candidate_count" to usable.size.toLong(), "rejected_count" to rejected.toLong(),
+        mapOf("candidate_count" to usable.size.toLong(), "checked_count" to checked.toLong(), "rejected_count" to rejected.toLong(),
             "cue_count" to (best?.cues?.size ?: 0).toLong(), "source_code" to when {
                 best == null -> 0L; best.embedded -> 1L; best.selected -> 2L; else -> 3L },
             "sdh_count" to (best?.let { IntroSubtitlePolicy.descriptionCount(it.cues) } ?: 0).toLong()))

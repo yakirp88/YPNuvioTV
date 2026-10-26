@@ -9,6 +9,34 @@ import org.junit.Test
 import java.io.IOException
 
 class IntroAcquisitionTest {
+
+    @Test fun independentSearchPreservesSdhMetadataAndDoesNotRequireEnglishOrInstalledAddons() {
+        val found = PublicIntroSubtitles.parse("""{"subtitles":[
+            {"id":"numeric-1","url":"https://example.org/1.srt","lang":"jpn","label":"Japanese [SDH]"},
+            {"id":"numeric-2","url":"https://example.org/2.srt","lang":"spa","hearing_impaired":true},
+            {"id":"numeric-3","url":"https://example.org/3.srt","lang":"fra","hearingImpaired":1},
+            {"id":"numeric-4","url":"http://example.org/4.srt","lang":"eng"}
+        ]}""")
+        assertEquals(3, found.size)
+        assertTrue(found.all { IntroSubtitlePolicy.descriptive(it.label) })
+        assertEquals(setOf("jpn", "spa", "fra"), IntroSubtitleSearch.candidates(found, emptyList()).map { it.subtitle.lang }.toSet())
+        assertEquals("numeric-1", found.first().subtitle.id)
+    }
+
+    @Test fun independentSdhResultsAreNotStarvedByInstalledOrFirstLanguageResults() {
+        fun option(id: Int, lang: String, label: String = "ordinary") = IntroSubtitleOption(
+            com.nuvio.tv.domain.model.Subtitle("$id", "https://example.org/$id.srt", lang, "test", null), label)
+        val independent = (0 until 60).map { option(it, "eng") } + listOf(
+            option(60, "jpn", "SDH"), option(61, "fra"), option(62, "spa"))
+        val installed = (100 until 150).map { option(it, "heb") }
+        val pool = IntroSubtitleSearch.candidates(independent, installed)
+        assertEquals(32, pool.size)
+        assertEquals("60", pool.first().subtitle.id)
+        assertTrue(pool.any { it.subtitle.lang == "fra" })
+        assertTrue(pool.any { it.subtitle.lang == "spa" })
+        assertEquals(24, pool.count { it.subtitle.addonName == "test" && it.subtitle.id.toInt() < 100 })
+        assertEquals(pool.size, pool.map { it.subtitle.url }.distinct().size)
+    }
     @Test fun indexedMatroskaTextUsesCueOffsetsAndChecksTrackAndTimestamp() {
         val time = byteArrayOf(0xE7.toByte(), 0x82.toByte(), 0x03, 0xE8.toByte())
         val payload = byteArrayOf(0x81.toByte(), 0, 10, 0) + "[Theme music]".toByteArray()

@@ -4,6 +4,18 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+## [0.3.8] — 2026-10-27
+
+### Fixed
+- Device log ijHDF found 16 independent subtitle options but only examined eight, rejected seven and chose the viewing caption with zero descriptive cues. Preserve independent-provider label/SDH flags, inspect up to 24 independent and eight installed options with language diversity, and remove the English preference. Discovery does not use viewing-language or installed-addon filters.
+- When embedded indexes are unavailable, use already timed embedded text or the explicitly selected/delayed viewing caption as additional timestamp references. SDH candidates still require strong alignment before use; unknown timing is never silently treated as correct.
+- Download up to three candidates concurrently within the existing bounded acquisition pass; report each candidate's cue/description counts and timing outcome, plus total discoveries/languages/checks. No subtitle text, language labels, IDs or URLs enter the log.
+- Cloud instructions explicitly accept descriptive captions in any language and distinguish named theme/opening clues from ordinary background music.
+
+### Verification
+- Targeted regression tests and Android build pending. The supplied log completed visual cloud analysis with zero proposals after an earlier text timeout; it does not demonstrate that all cloud requests lack connectivity.
+- Provider metadata and cross-language timing vary. No bitmap OCR, unverified-timing submissions, audio analysis or automatic AI reporting is implemented.
+
 ## [0.3.7] — 2026-10-26
 
 ### Distribution

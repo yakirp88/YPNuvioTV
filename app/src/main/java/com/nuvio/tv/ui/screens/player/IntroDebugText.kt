@@ -55,7 +55,8 @@ internal object IntroDebugText {
                 else t("חיפוש OpenSubtitles נוסף נכשל: ${status(row.status, he)}", "Extra OpenSubtitles search failed: ${status(row.status, he)}")
             "embedded_scan" -> t("נמצאו ${n("embedded_count")} מסלולי טקסט נתמכים בתוך הקובץ", "Found ${n("embedded_count")} supported text tracks in the file")
             "embedded_subtitles" -> t("נקראו ${n("cue_count")} תיאורים מתוך ${n("embedded_count")} מסלולי כתוביות בקובץ", "Read ${n("cue_count")} observations from ${n("embedded_count")} embedded text tracks")
-            "subtitle_search" -> t("בודק התאמה של ${n("candidate_count")} כתוביות מתוספים ומחיפוש נוסף", "Checking ${n("candidate_count")} subtitles from add-ons and extra search")
+            "subtitle_search" -> t("בודק ${n("candidate_count")} כתוביות ב־${n("language_count")} שפות; נמצאו ${n("discovered_count")}", "Checking ${n("candidate_count")} subtitles from add-ons and extra search")
+            "subtitle_candidate" -> t("נבדקה כתובית: ${n("cue_count")} שורות, ${n("sdh_count")} תיאורים; " + if (row.status == "subtitle_ready") "הזמנים תואמים" else "אין התאמת זמנים מאומתת", "Caption checked: ${n("cue_count")} cues, ${n("sdh_count")} descriptions; " + if (row.status == "subtitle_ready") "timing matched" else "timing not verified")
             "subtitle_choice" -> if (row.status == "subtitle_ready") {
                 val source = when (n("source_code")) { 1L -> t("מובנית בקובץ", "embedded"); 2L -> t("בחירת המשתמש", "user-selected"); else -> t("התאמה אוטומטית", "automatically aligned") }
                 t("נבחרה כתובית: $source, ${n("cue_count")} שורות, ${n("sdh_count")} תיאורים", "Subtitle chosen: $source, ${n("cue_count")} cues, ${n("sdh_count")} descriptions")
