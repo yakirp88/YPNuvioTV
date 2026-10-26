@@ -7,13 +7,14 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 ## [0.3.4] — 2026-10-26
 
 ### Fixed
-- User log HVadF contained only two session-start events. Removed journal resets from review identity rebinding (including duration/teardown changes); the player collector now starts its journal only when analysis can actually run.
+- A device-uploaded log contained only two session-start events. Removed journal resets from review identity rebinding (including duration/teardown changes); the player collector now starts its journal only when analysis can actually run.
 - Remove duplicate session-start entries and preserve the completed log when leaving playback for settings.
 - Separate native video extraction failures from Google network/response/output failures. Preserve prior HTTP failures when optional media extraction also fails.
 - Classify cloud failures using fixed labels for DNS, TLS, timeout, connection, invalid response/output, output limit and blocked output; never include provider bodies, URLs or keys.
 
 ### Verification
-- The original cloud failure cannot be determined from HVadF because the detailed events were lost. A new device run is needed after this fix.
+- GitHub Actions run 40303335843 passed the Android APK build and selected unit suites, including journal continuity and safe failure classification. Passed 61 analyzer/review checks and ICU compatibility checks.
+- The original cloud failure cannot be determined from the uploaded log because the detailed events were lost. A new device run is needed after this fix.
 
 
 ## [0.3.3] — 2026-10-26
