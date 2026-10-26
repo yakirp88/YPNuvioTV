@@ -10,6 +10,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Natural playback completion no longer cancels an active evidence collector or rejects late review proposals.
 - Reserve the end-of-episode review before remote analysis, preventing automatic episode navigation from winning the race. Closing the summary still releases navigation.
 - Offer subtitle proposals before optional native frame extraction, which may be slow or unsupported.
+- Preserve review edits when a visual result arrives after the review becomes visible.
 - Preserve numeric Gemini HTTP failures instead of flattening them into an uninformative IOException; preserve successful subtitle proposals when visual analysis fails.
 
 ### Added

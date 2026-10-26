@@ -79,6 +79,8 @@ internal class IntroReviewSession(
             profiles.activeProfileId.value != player.profileId) return
         if (store.snapshot(player.profileId).submissionMode != IntroSubmissionMode.REVIEW_AT_EPISODE_END) return
         if (identity != mediaIdentity || dismissed || profiles.activeProfileId.value != player.profileId) return
+        // Once visible, a late visual pass must not replace the user's edits or selected images.
+        if (player.uiState.value.playbackEnded && _state.value.segments.isNotEmpty()) return
         url = player.getCurrentStreamUrl()
         headers = player.getCurrentHeaders().toMap()
         val segments = proposals.map { proposal ->

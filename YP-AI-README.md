@@ -92,3 +92,26 @@ When the Actions signing secret is absent, the agent can use the short-lived
 signing-input artifact, sign privately with the original backed-up key, and
 import the checksum- and certificate-verified APK through the signed-release
 workflow. The key must never be included in that input artifact or public files.
+
+## Detection logs and end-of-episode status (0.3.3+)
+
+Settings → YP segment detection → Crash diagnostics / screenshot offers
+“Upload latest detection log”. The upload includes a bounded chronological
+journal of fixed event/status names, numeric evidence counts, settings flags
+and elapsed times, plus app version/API level. It omits titles, accounts,
+keys, media URLs, subtitle text, API response bodies and raw crash traces.
+The UI discloses that dpaste.org links are readable by anyone holding them;
+the API request asks for a seven-day expiry. No API key or account is needed.
+Upload occurs only when the button is pressed, with no automatic retry.
+The returned URL can be photographed or copied. If unavailable, local
+report copy and screenshots remain available.
+
+Review mode reserves episode completion while the optional analyzer finishes.
+Natural completion no longer cancels it. A summary explains empty results and
+service errors; manual close releases episode navigation. Native frame calls
+may be slow or unsupported, so existing subtitle proposals are offered first.
+Automatic publishing remains gated off; selecting that mode now explains the
+limitation at episode end.
+
+API contract: https://docs.dpaste.org/api/ . A synthetic-content API upload
+and public readback were checked during development; TV testing is pending.

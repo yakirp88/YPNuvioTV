@@ -52,7 +52,7 @@ def main():
     notes = output / 'release-notes.md'
     notes.write_text(
         f'Nuvio YP AI {version}; Android version code {data["version_code"]}.\n\n'
-        'Includes screenshot/copy crash diagnostics, background-failure isolation and a top-left detection ring.\n'
+        'Includes a bounded detection journal with manual dpaste upload, end-of-episode status and late-analysis review fixes.\n'
         'Checksum, original signing certificate, package and version verified before publication.\n'
         f'Corresponding source commit: {source}.\n'
         'Device playback and reproduction of the reported crash still need user testing.\n'
