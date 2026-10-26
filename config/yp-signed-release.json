@@ -1,12 +1,12 @@
 {
-  "version": "0.3.3",
-  "source_sha": "8063bb147a45cf209a6effa61c1f8b508503c4ca",
-  "sha256": "53a9af32dc89e0fc12cf5293a0b2fd5b66271ecdd372416e11efa46f53e65287",
-  "size_bytes": 155968360,
-  "version_code": 500010,
+  "version": "0.3.4",
+  "source_sha": "27834b008f15a95d92c190ecce19464740a4c5e8",
+  "sha256": "57cc1769d4edd1f5837f2870391bc7609491e9b669946ae14644d3dcc3c045ee",
+  "size_bytes": 155980648,
+  "version_code": 500011,
   "build_artifact": {
-    "run_id": 40283797963,
-    "name": "yp-ai-signing-input-10"
+    "run_id": 40303335843,
+    "name": "yp-ai-signing-input-11"
   },
-  "release_target_sha": "0c9d3d2720df591c1b8c9ec96dc82924ed56ca1d"
+  "release_target_sha": "831850dd38280d2fbf59d42d1fe1fa368a0f56f9"
 }
