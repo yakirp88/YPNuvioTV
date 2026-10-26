@@ -4,5 +4,8 @@
   "sha256": "53a9af32dc89e0fc12cf5293a0b2fd5b66271ecdd372416e11efa46f53e65287",
   "size_bytes": 155968360,
   "version_code": 500010,
-  "url": "https://files.catbox.moe/6j58fd.apk"
+  "build_artifact": {
+    "run_id": 40283797963,
+    "name": "yp-ai-signing-input-10"
+  }
 }
