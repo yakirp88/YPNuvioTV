@@ -99,11 +99,11 @@ def main():
     notes = output / 'release-notes.md'
     notes.write_text(
         f'Nuvio YP AI {version}; Android version code {data["version_code"]}.\n\n'
-        'Includes a bounded detection journal with manual dpaste upload, end-of-episode status and late-analysis review fixes.\n'
+        f'{data.get("release_summary", "Includes detection diagnostics and manual review.")}\n'
         'Checksum, original signing certificate, package and version verified before publication.\n'
         f'Corresponding source commit: {source}.\n'
         f'Release anchor: {target}; all non-workflow source files match the source commit.\n'
-        'Device playback and reproduction of the reported crash still need user testing.\n'
+        'Device playback and cloud analysis still need user testing.\n'
         'Audio analysis and automatic AI reporting remain unavailable.\n'
     )
     tag = f'yp-ai-v{version}'
@@ -111,7 +111,7 @@ def main():
     assert exists.returncode != 0, 'Immutable release already exists; never overwrite it'
     subprocess.run(['gh', 'release', 'create', tag, str(apk), str(output / 'SHA256SUMS.txt'),
                     str(output / 'source.zip'), '--target', target, '--prerelease',
-                    '--title', f'YP AI {version} — crash diagnostics', '--notes-file', str(notes)], check=True)
+                    '--title', f'YP AI {version}', '--notes-file', str(notes)], check=True)
 
 
 if __name__ == '__main__':

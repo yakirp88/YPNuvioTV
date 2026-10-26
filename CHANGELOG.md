@@ -12,7 +12,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Do not log an empty subtitle pass as a completed cloud analysis. Log the real visual cloud request and successful visual result with evidence/proposal counts.
 
 ### Verification
-- A delayed local HTTP response beyond the old 10-second limit is covered by a regression test, alongside total-deadline, cancellation and response-body timeout cases. Build and device verification pending.
+- GitHub Actions run 40369825483 passed the universal Android build, delayed-response/deadline/body-timeout/cancellation regressions and existing selected unit suites. Passed 61 analyzer/review checks and ICU compatibility checks. Device verification remains pending.
 - The log proves a timeout, not its underlying network/provider cause. These longer budgets do not establish that the user's key or service access works.
 
 ## [0.3.4] — 2026-10-26
