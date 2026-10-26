@@ -13,7 +13,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Up to three attempts for HTTP 502/503/504 with exponential delay and jitter, within a four-minute overall analysis-request budget. Retries are visible in the journal/overlay. Authentication, billing/quota and other HTTP failures are not retried. Caller cancellation still stops work.
 
 ### Verification
-- Build, transport/privacy and live-journal regression verification pending. Android TV layout, remote navigation and real API/device behavior require device testing.
+- GitHub Actions run 40379095603 passed the universal Android build and selected transport/privacy/live-journal unit suites, including 503 recovery, bounded retries, cancellation, safe provider reasons and snapshot privacy. Passed 61 analyzer/review checks and ICU compatibility checks. Android TV layout, remote navigation and real API/device behavior require device testing.
 - Sparse initial video sampling remains experimental; audio analysis, adaptive boundary refinement and automatic AI publication are not implemented.
 
 ## [0.3.5] — 2026-10-26
