@@ -126,3 +126,11 @@ and ZIP metadata). It contains no private signing key. The importer checks
 the original artifact hash, source SHA and successful build conclusion, then
 checks the reconstructed APK hash, original certificate and manifest before
 publishing. This avoids temporary file-host download failures.
+
+Release 0.3.3 uses `yp/release-0.3.3` as the tag anchor. Its application and
+other non-workflow files exactly match tested source `8063bb147a45cf209a6effa61c1f8b508503c4ca`;
+only `.github/workflows` uses the approved `dev` definitions, satisfying the
+GitHub release API workflow-permission guard without changing `dev` or
+requesting broader credentials. The importer verifies source equivalence
+excluding only that workflow directory. The source archive and release notes
+identify the tested source explicitly.

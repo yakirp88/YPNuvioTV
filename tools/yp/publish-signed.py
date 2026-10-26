@@ -85,6 +85,12 @@ def main():
     assert int(package.group(2)) == data['version_code']
     assert f'-yp-ai.{version}.build.' in package.group(3)
     run('git', 'fetch', '--depth=1', 'origin', source)
+    target = data.get('release_target_sha', source)
+    assert re.fullmatch(r'[a-f0-9]{40}', target)
+    run('git', 'fetch', '--depth=1', 'origin', target)
+    # Release records may use approved default workflows; every application/source file must match.
+    changed = run('git', 'diff', '--name-only', source, target, '--', '.', ':(exclude).github/workflows/**')
+    assert not changed.strip(), 'Release anchor changes application source'
     checked_version = run('git', 'show', source + ':yp-version.properties')
     assert f'versionName={version}\n' in checked_version
     with (output / 'source.zip').open('wb') as archive:
@@ -96,6 +102,7 @@ def main():
         'Includes a bounded detection journal with manual dpaste upload, end-of-episode status and late-analysis review fixes.\n'
         'Checksum, original signing certificate, package and version verified before publication.\n'
         f'Corresponding source commit: {source}.\n'
+        f'Release anchor: {target}; all non-workflow source files match the source commit.\n'
         'Device playback and reproduction of the reported crash still need user testing.\n'
         'Audio analysis and automatic AI reporting remain unavailable.\n'
     )
@@ -103,7 +110,7 @@ def main():
     exists = subprocess.run(['gh', 'release', 'view', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     assert exists.returncode != 0, 'Immutable release already exists; never overwrite it'
     subprocess.run(['gh', 'release', 'create', tag, str(apk), str(output / 'SHA256SUMS.txt'),
-                    str(output / 'source.zip'), '--target', source, '--prerelease',
+                    str(output / 'source.zip'), '--target', target, '--prerelease',
                     '--title', f'YP AI {version} — crash diagnostics', '--notes-file', str(notes)], check=True)
 
 
