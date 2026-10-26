@@ -20,6 +20,7 @@ private suspend fun <T> optional(default: T, block: suspend () -> T): T = try { 
 /** Analysis-only acquisition. Never selects a player track, seeks playback or changes its delay. */
 internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String, season: Int?, episode: Int?,
     duration: Long): List<SubtitleEvidenceAnalyzer.Cue> = supervisorScope {
+    val acquisitionDeadline = System.nanoTime() + 60_000_000_000L
     val source = currentStreamUrl.orEmpty()
     val candidates = mutableListOf<IntroCaptionCandidate>()
     val embedded = async { optional(emptyList()) { EmbeddedIntroSubtitles.read(source, getCurrentHeaders(), duration) } }
@@ -48,11 +49,12 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
     val chosen = uiState.value.selectedAddonSubtitle
     val extra = public.await()
     val pool = (listOfNotNull(chosen) + installed + extra).distinctBy { it.url }
-        .sortedByDescending { if (IntroSubtitlePolicy.descriptive(it.id)) 100 else if (it.lang.startsWith("en")) 20 else 0 }
+        .sortedByDescending { (if (it.url == chosen?.url) 1000 else 0) + (if (IntroSubtitlePolicy.descriptive(it.id)) 100 else if (it.lang.startsWith("en")) 20 else 0) }
         .take(8)
     YpCrashDiagnostics.logDetectionEvent("subtitle_search", metrics = mapOf("candidate_count" to pool.size.toLong()))
     var rejected = 0
     for (subtitle in pool) {
+        if (System.nanoTime() >= acquisitionDeadline) break
         val result = optional<List<SubtitleEvidenceAnalyzer.Cue>>(emptyList()) {
             val body = withTimeoutOrNull(9000) {
                 if (extra.any { it.url == subtitle.url } && subtitle.headers.isNullOrEmpty()) PublicIntroSubtitles.download(subtitle.url)

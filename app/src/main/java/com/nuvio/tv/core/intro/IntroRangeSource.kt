@@ -13,8 +13,10 @@ internal class IntroRangeReader(private val url: String, private val headers: Ma
         .callTimeout(5, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
     private val deadline = System.nanoTime() + 30_000_000_000L
     private var size = -1L
-    var downloaded = 0L; private set
-    var requests = 0; private set
+    var downloaded = 0L
+        private set
+    var requests = 0
+        private set
     private var closed = false
     private val cache = linkedMapOf<Long, ByteArray>()
     private fun block(position: Long): ByteArray {

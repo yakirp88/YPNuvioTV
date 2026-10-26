@@ -16,6 +16,7 @@ internal data class IntroCaptionCandidate(val cues: List<SubtitleEvidenceAnalyze
 internal object EmbeddedIntroSubtitles {
     private val supported = setOf("application/x-subrip", "text/vtt", "text/ssa", "text/x-ssa", "text/x-ass", "text/3gpp", "application/x-quicktime-tx3g")
     suspend fun read(url: String, headers: Map<String, String>, duration: Long): List<IntroCaptionCandidate> = withContext(Dispatchers.IO) {
+        val deadline = System.nanoTime() + 35_000_000_000L
         val job = currentCoroutineContext()[Job]
         val source = IntroRangeSource(url, headers) { job?.isActive != false }
         val extractor = MediaExtractor()
@@ -41,7 +42,7 @@ internal object EmbeddedIntroSubtitles {
                 currentCoroutineContext().ensureActive()
                 extractor.seekTo(start * 1000, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
                 var steps = 0
-                while (steps++ < 5000) {
+                while (steps++ < 5000 && System.nanoTime() < deadline) {
                     currentCoroutineContext().ensureActive()
                     val index = extractor.sampleTrackIndex
                     val at = extractor.sampleTime / 1000
