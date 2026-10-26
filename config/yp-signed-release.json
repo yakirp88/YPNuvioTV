@@ -1,13 +1,13 @@
 {
-  "version": "0.3.6",
-  "source_sha": "7c173e0d126620a9dda36dbcf708ab9d144ba3ee",
-  "sha256": "22e2463971b525e554c3df8846d14b9e4fb672cce53443383208f198c575d426",
-  "size_bytes": 155997032,
-  "version_code": 500015,
+  "version": "0.3.7",
+  "source_sha": "a9864e4bf2c624054a3428e78c77a43407e84a33",
+  "sha256": "02daf1b152d86320c41d04c2185e0ff2a4cd188136b27b7a20c21b3ea467c805",
+  "size_bytes": 156029800,
+  "version_code": 500022,
   "build_artifact": {
-    "run_id": 40379095603,
-    "name": "yp-ai-signing-input-15"
+    "run_id": 40406708157,
+    "name": "yp-ai-signing-input-22"
   },
-  "release_target_sha": "bf4674580c05ba79d45f914669c45d091abbcd56",
-  "release_summary": "Adds a player-toggleable live detection debug panel with plain-language actions/results and an explicit small cloud inference test. Includes allowlisted provider error diagnostics and bounded 502/503/504 retries. Build and transport/privacy regression tests passed; Android TV layout, remote navigation and real cloud behavior still require device testing."
+  "release_target_sha": "e9715f9bcae27f447700020d551dcf2ebaf1bd4f",
+  "release_summary": "Independent subtitle acquisition with bounded indexed Matroska text reads, SDH preference, external provider discovery and timing checks. Viewing subtitle changes no longer cancel detection. Adds bounded Google 3.6 Flash fallback after 3.8 availability errors and safe model/source diagnostics. Android build, selected regression suites and 61 analyzer/review checks passed. Actual device extraction, public subtitle provider access and successful Google inference still require device verification. No bitmap OCR or audio detection."
 }
