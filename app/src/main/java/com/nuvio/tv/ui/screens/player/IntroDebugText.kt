@@ -57,7 +57,11 @@ internal object IntroDebugText {
             "media_sample" -> t("חולצו ${n("frame_count")} תמונות מהווידאו", "Extracted ${n("frame_count")} video frames")
             "cloud_request" -> t("נשלחה בקשת ניתוח: ${n("frame_count")} תמונות, ${n("cue_count")} כתוביות", "Analysis requested: ${n("frame_count")} frames, ${n("cue_count")} cues")
             "cloud_retry" -> t("השרת החזיר ${n("http_status")}; ממתין לניסיון ${n("attempt")} מתוך 3", "Server returned ${n("http_status")}; waiting for attempt ${n("attempt")} of 3")
-            "cloud_result" -> if (row.status == "not_requested") t("אין כתוביות לניתוח ענן; עובר לווידאו", "No cloud subtitle pass; continuing with video") else t("הענן החזיר ${n("proposal_count")} הצעות", "Cloud returned ${n("proposal_count")} proposals")
+            "cloud_result" -> when (row.status) {
+                "not_requested" -> t("לא נשלחה בקשת ניתוח כתוביות לענן", "No subtitle analysis request was sent")
+                "completed", "visual_completed" -> t("הענן החזיר ${n("proposal_count")} הצעות", "Cloud returned ${n("proposal_count")} proposals")
+                else -> status(row.status, he)
+            }
             "review_offered" -> t("נשמרו ${n("proposal_count")} הצעות לבדיקה בסיום", "Saved ${n("proposal_count")} proposals for end review")
             else -> status(row.status, he)
         }
