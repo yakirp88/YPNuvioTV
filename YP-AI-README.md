@@ -10,7 +10,7 @@ This branch is based on official NuvioTV `1.1.0-beta.8`, commit
 Use GitHub Releases, choosing a release whose title starts with **YP AI**.
 `yp-ai-v0.2.0` imports the previously verified APK, with checksum verification.
 Each subsequent source push runs tests and builds an APK; a prerelease is published
-only when a persistent signing key is configured. Release tags are unique and are never overwritten.
+only when the original signing certificate is verified, through a configured signing secret or private local signing and verified import. Release tags are unique and are never overwritten.
 Download `Nuvio-YP.apk` from the release assets. A short Downloader code can point to
 that public asset; ChatGPT Library links require account access and are not direct APK URLs.
 
@@ -81,6 +81,12 @@ exception class/stack-frame structure. Exception messages, stream/subtitle URLs,
 headers, API keys, raw logcat and device/account identifiers are omitted. On
 Android 11+, the OS may also supply a native/ANR/low-memory exit summary. It
 cannot reconstruct a full Java trace from a crash before this feature was installed.
+
+For the first device check, install the signed 0.3.2 update over 0.2 without
+uninstalling, enable subtitle evidence and keep cloud AI off, then replay the
+same episode. This exercises the formerly failing local path without a Gemini
+API key. If it exits, reopen the app and photograph every numbered report page.
+The old Downloader code 6618011 still points to 0.2 and does not install this fix.
 
 When the Actions signing secret is absent, the agent can use the short-lived
 signing-input artifact, sign privately with the original backed-up key, and

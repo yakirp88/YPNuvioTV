@@ -1,6 +1,6 @@
 > **Nuvio YP AI fork** — development branch: `yp/ai-intro`.
-> [Download verified 0.2 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.2.0/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
-> The APK currently published is 0.2; 0.3 source adds release infrastructure. Audio detection and automatic AI publishing are not implemented.
+> [Download 0.3.2 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.2/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
+> Version 0.3.2 fixes an Android ICU subtitle-pattern initialization failure, adds local screenshot/copy crash reports and places the detection ring at the top-left. Device playback verification is still needed. Audio detection and automatic AI publishing are not implemented.
 
 <div align="center">
 

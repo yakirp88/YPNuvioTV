@@ -21,6 +21,12 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Detection ring now appears at the absolute top-left, including Hebrew layouts.
 - Superseded build runs are cancelled so the latest fix can be checked without waiting for obsolete builds.
 
+### Verification
+- GitHub Actions run 40248644384 passed the Android build and selected unit suites for skip visibility, failure isolation and diagnostic privacy/pagination.
+- Passed 61 production analyzer/review checks and the native ICU compilation/markup regression.
+- Universal full-debug APK uses version code 500008 and the original 0.2 signing certificate; package/version, signature and ZIP CRC verified before release import.
+- Device playback has not yet been tested with this update.
+
 ### Limitations
 - Fatal reports require the new version to be installed before reproducing; Android may supply limited prior-version exit information on an in-place update.
 - Full disk, forced termination and native crashes may prevent a Java report. No report is uploaded automatically.
@@ -36,7 +42,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 ### Verification
 - Added regression checks for upstream failures, collector failures and cancellation propagation.
 - This is failure isolation, not a confirmed diagnosis of the reported device crash. A device log and playback test are still needed; native decoder/process crashes are not caught by this boundary.
-- A signed update still requires the original repository signing secret. The published 0.2 APK does not include this change.
+- This version was source-only; its changes are included in the 0.3.2 signed update.
 
 ### Added
 - Windows helper for private signing-secret configuration and prominent GitHub APK links.
