@@ -11,10 +11,11 @@ import java.util.concurrent.TimeUnit
 
 /** Official public Stremio OpenSubtitles provider, independent of installed add-ons. */
 internal object PublicIntroSubtitles {
+    class HttpFailure(val status: Int) : java.io.IOException("Subtitle provider HTTP failure")
     private val client = OkHttpClient.Builder().connectTimeout(4, TimeUnit.SECONDS).readTimeout(5, TimeUnit.SECONDS)
         .callTimeout(8, TimeUnit.SECONDS).build()
     private fun get(url: String, limit: Long): String = client.newCall(Request.Builder().url(url).build()).execute().use {
-        check(it.isSuccessful)
+        if (!it.isSuccessful) throw HttpFailure(it.code)
         val source = checkNotNull(it.body).source()
         check(!source.request(limit + 1))
         source.readUtf8()
@@ -24,7 +25,7 @@ internal object PublicIntroSubtitles {
         require(videoId.matches(Regex("tt[0-9]{7,10}(:[0-9]{1,4}:[0-9]{1,5})?")))
         val url = "https://opensubtitles-v3.strem.io/".toHttpUrl().newBuilder()
             .addPathSegment("subtitles").addPathSegment(type).addPathSegment("$videoId.json").build()
-        val array = JsonParser.parseString(get(url.toString(), 1_048_576)).asJsonObject.getAsJsonArray("subtitles")
+        val array = JsonParser.parseString(get(url.toString(), 1_048_576)).asJsonObject.getAsJsonArray("subtitles") ?: error("Invalid subtitle provider response")
         array?.take(400)?.mapNotNull { value ->
             runCatching {
                 val item = value.asJsonObject

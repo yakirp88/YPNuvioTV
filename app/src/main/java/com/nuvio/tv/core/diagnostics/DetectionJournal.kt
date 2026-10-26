@@ -11,7 +11,7 @@ internal class DetectionJournal {
     private val metrics = setOf("cue_count", "body_chars", "proposal_count", "frame_count", "duration_ms",
         "http_status", "cloud_enabled", "review_mode", "missing_count", "subtitle_selected", "attempt", "model_code", "candidate_count", "embedded_count", "rejected_count", "source_code", "sdh_count")
     private val events = setOf("session", "status", "lookup_result", "subtitle_download", "subtitle_parsed",
-        "cloud_request", "cloud_result", "media_sample", "review_offered", "failure", "settings", "cloud_retry", "provider_reason", "cloud_probe_request", "cloud_probe_result", "embedded_scan", "embedded_subtitles", "subtitle_search", "subtitle_choice", "cloud_model", "probe_model", "cloud_fallback")
+        "cloud_request", "cloud_result", "media_sample", "review_offered", "failure", "settings", "cloud_retry", "provider_reason", "cloud_probe_request", "cloud_probe_result", "subtitle_provider", "embedded_scan", "embedded_subtitles", "subtitle_search", "subtitle_choice", "cloud_model", "probe_model", "cloud_fallback")
 
     @Synchronized fun reset() { lines.clear(); entries.clear(); startedAt = 0 }
     @Synchronized fun snapshot() = DetectionSnapshot(startedAt, entries.toList())

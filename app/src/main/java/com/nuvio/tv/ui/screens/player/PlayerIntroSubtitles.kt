@@ -27,7 +27,22 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
     val index = async { optional(null) { EmbeddedSubtitleTimelineLoader.load(source, getCurrentHeaders()) } }
     val movie = contentType.equals("movie", true)
     val id = if (movie) imdb else "$imdb:$season:$episode"
-    val public = async { optional(emptyList()) { PublicIntroSubtitles.discover(if (movie) "movie" else "series", id) } }
+    val public = async {
+        try {
+            PublicIntroSubtitles.discover(if (movie) "movie" else "series", id).also {
+                YpCrashDiagnostics.logDetectionEvent("subtitle_provider", "completed", mapOf("candidate_count" to it.size.toLong()))
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) {
+            val status = when (error) {
+                is PublicIntroSubtitles.HttpFailure -> "http_${error.status}"
+                is java.io.IOException -> "network_failed"
+                else -> "response_invalid"
+            }
+            YpCrashDiagnostics.logDetectionEvent("subtitle_provider", status)
+            emptyList<Subtitle>()
+        }
+    }
     // Reuse the player's installed-provider discovery if it is already in flight.
     repeat(8) { if (uiState.value.isLoadingAddonSubtitles) delay(500) }
     val installed = uiState.value.addonSubtitles.ifEmpty {

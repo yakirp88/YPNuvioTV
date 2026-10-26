@@ -51,6 +51,8 @@ internal object IntroDebugText {
         fun t(h: String, e: String) = if (he) h else e
         fun n(key: String) = row.metrics[key] ?: 0
         return when (row.event) {
+            "subtitle_provider" -> if (row.status == "completed") t("חיפוש OpenSubtitles נוסף החזיר ${n("candidate_count")} מועמדים", "Extra OpenSubtitles search returned ${n("candidate_count")} candidates")
+                else t("חיפוש OpenSubtitles נוסף נכשל: ${status(row.status, he)}", "Extra OpenSubtitles search failed: ${status(row.status, he)}")
             "embedded_scan" -> t("נמצאו ${n("embedded_count")} מסלולי טקסט נתמכים בתוך הקובץ", "Found ${n("embedded_count")} supported text tracks in the file")
             "embedded_subtitles" -> t("נקראו ${n("cue_count")} תיאורים מתוך ${n("embedded_count")} מסלולי כתוביות בקובץ", "Read ${n("cue_count")} observations from ${n("embedded_count")} embedded text tracks")
             "subtitle_search" -> t("בודק התאמה של ${n("candidate_count")} כתוביות מתוספים ומחיפוש נוסף", "Checking ${n("candidate_count")} subtitles from add-ons and extra search")
