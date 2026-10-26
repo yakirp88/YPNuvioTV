@@ -1,8 +1,8 @@
 > **Nuvio YP AI fork** — development branch: `yp/ai-intro`.
-> [Download 0.3.6 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.6/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
-> Version 0.3.6 adds a live top-left detection debug panel, an explicit small cloud inference test, safe provider error categories and bounded server retries. In player controls, toggle the bug icon; a cloud-test icon appears beside it. The panel stays visible when controls hide. Android build and selected unit suites passed; real TV layout/navigation and cloud behavior need device testing. Audio detection, adaptive boundary refinement and automatic AI publishing are not implemented.
+> [Download 0.3.7 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.7/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
+> Version 0.3.7 adds independent embedded text subtitle acquisition, external subtitle discovery with SDH preference/timing checks, and bounded Google model fallback after availability errors. Changing viewing subtitles no longer cancels analysis. Toggle the player bug icon for live actions/results and the cloud icon for a small inference test. Android build and selected regression suites passed; actual device extraction, external provider access and successful Google inference need device verification. Bitmap OCR, audio detection, adaptive video refinement and automatic AI publishing are not implemented.
 
-> Downloader code: **5813076** — YP AI 0.3.6, version code 500015. Updates previous YP AI versions in place using the same signing certificate.
+> Downloader code: **8875821** — YP AI 0.3.7, version code 500022. Updates previous YP AI versions in place using the same signing certificate.
 
 <div align="center">
 

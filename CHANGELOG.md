@@ -6,6 +6,10 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [0.3.7] — 2026-10-26
 
+### Distribution
+- Published signed version code 500022 through successful workflow 40409107403. Public APK full download matched SHA-256 02daf1b152d86320c41d04c2185e0ff2a4cd188136b27b7a20c21b3ea467c805 (156029800 bytes).
+- Downloader code 8875821 was verified against the immutable GitHub 0.3.7 APK URL. Release anchor e9715f9bcae27f447700020d551dcf2ebaf1bd4f has identical non-workflow source to tested commit a9864e4bf2c624054a3428e78c77a43407e84a33.
+
 ### Changed
 - Detection subtitle acquisition is independent of the displayed subtitle. Changing the viewing subtitle/delay no longer cancels in-flight detection (as happened in device log jVXUZ).
 - Indexed Matroska text extraction reads subtitle blocks directly from Cues/cluster offsets without decoding video/audio, checks track/timestamp and uses bounded small HTTP ranges. Other supported containers fall back to a separate MediaExtractor with bounded HTTP byte ranges (30-second read budget, 32 MiB/128 requests, 2 MiB cache). Samples only beginning/ending windows and never seeks the active player. Image/PGS subtitles require OCR and are not treated as text; unsupported containers/range servers fall back safely.
