@@ -41,6 +41,8 @@ class IntroAcquisitionTest {
         val times = (0 until 120).map { i -> i * 8000L + (i * i * 137L % 2700) }
         val cues = times.map { SubtitleEvidenceAnalyzer.Cue(it + 4500, it + 5500, "dialogue") }
         assertEquals(-4500L, IntroSubtitlePolicy.alignOffset(cues, times, 1_000_000))
+        val sdh = (cues + times.map { SubtitleEvidenceAnalyzer.Cue(it + 6200, it + 7200, "[MUSIC]") }).sortedBy { it.startMs }
+        assertEquals(-4500L, IntroSubtitlePolicy.alignOffset(sdh, times, 1_000_000))
         val other = (0 until 150).map { i -> i * 6317L + (i * i * 911L % 5300) }
         assertNull(IntroSubtitlePolicy.alignOffset(cues, other, 1_000_000))
     }

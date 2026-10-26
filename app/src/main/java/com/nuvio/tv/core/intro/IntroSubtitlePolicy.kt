@@ -17,9 +17,13 @@ internal object IntroSubtitlePolicy {
 
     /** Strong constant-offset consensus across both halves; no extrapolation from duration alone. */
     fun alignOffset(cues: List<SubtitleEvidenceAnalyzer.Cue>, references: List<Long>, duration: Long): Long? {
-        if (cues.size < 30 || references.size < 30 || cues.last().startMs - cues.first().startMs < duration * 6 / 10) return null
+        // SDH adds sound descriptions that a regular reference track may omit.
+        // Establish alignment from spoken cues, then apply it to all cues including descriptions.
+        val dialogue = cues.filter { descriptionCount(listOf(it)) == 0 }
+        val anchors = if (dialogue.size >= 30) dialogue else cues
+        if (anchors.size < 30 || references.size < 30 || anchors.last().startMs - anchors.first().startMs < duration * 6 / 10) return null
         val ref = references.distinct().sorted()
-        val sample = (0 until 64).map { cues[it * (cues.size - 1) / 63].startMs }.distinct()
+        val sample = (0 until 64).map { anchors[it * (anchors.size - 1) / 63].startMs }.distinct()
         fun nearest(v: Long): Long {
             val i = ref.binarySearch(v).let { if (it >= 0) it else -it - 1 }
             return listOfNotNull(ref.getOrNull(i), ref.getOrNull(i - 1)).minBy { abs(it - v) }
