@@ -1,5 +1,7 @@
 package com.nuvio.tv.ui.screens.player.autosync
 
+import com.nuvio.tv.core.intro.EmbeddedTextReadPoint
+import com.nuvio.tv.core.intro.EmbeddedTextReadSource
 import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.ParsableByteArray
@@ -441,6 +443,13 @@ internal object EmbeddedSubtitleTimelineLoader {
         return IndexedEmbeddedTimeline(
             tracks = referenceTracks,
             source = "matroska-cues",
+            textSources = subtitleTracks.mapNotNull { track ->
+                val codec = track.codecId ?: return@mapNotNull null
+                val points = parsedCues[track.number]?.readPoints.orEmpty()
+                if (!codec.startsWith("S_TEXT/") || points.isEmpty()) null else EmbeddedTextReadSource(
+                    track.number, codec, (if (track.hearingImpaired) "SDH " else "") + track.name.orEmpty(),
+                    segmentDataStart, timestampScaleNs, points)
+            },
             bytesDownloaded = stats.bytesDownloaded,
             rangeRequests = stats.requests,
             loadMs = (System.nanoTime() - startedAtNs) / 1_000_000L,
@@ -1105,13 +1114,17 @@ internal object EmbeddedSubtitleTimelineLoader {
                         if (positionEnd != null) {
                             var trackNumber: Int? = null
                             var durationTicks: Long? = null
+                            var clusterPosition: Long? = null
+                            var relativePosition: Long? = null
                             forEachChild(cuesElement, child.dataStart, positionEnd) { positionChild ->
                                 when (positionChild.id) {
                                     ID_CUE_TRACK -> trackNumber = readUnsigned(cuesElement, positionChild)?.toInt()
                                     ID_CUE_DURATION -> durationTicks = readUnsigned(cuesElement, positionChild)
+                                    0xF1L -> clusterPosition = readUnsigned(cuesElement, positionChild)
+                                    0xF0L -> relativePosition = readUnsigned(cuesElement, positionChild)
                                 }
                             }
-                            trackNumber?.let { positions += CueTrackPosition(it, durationTicks) }
+                            trackNumber?.let { positions += CueTrackPosition(it, durationTicks, clusterPosition, relativePosition) }
                         }
                     }
                 }
@@ -1128,6 +1141,8 @@ internal object EmbeddedSubtitleTimelineLoader {
                     PendingIndexedCue(
                         startTimeMs = startMs,
                         explicitDurationMs = durationMs,
+                        clusterPosition = position.clusterPosition,
+                        relativePosition = position.relativePosition,
                     ),
                 )
             }
@@ -1157,7 +1172,7 @@ internal object EmbeddedSubtitleTimelineLoader {
                 .sortedBy { it.startTimeMs }
                 .distinctBy { it.startTimeMs }
 
-            if (tracksByNumber[trackNumber]?.codecId.equals(MATROSKA_PGS_CODEC_ID, ignoreCase = true)) {
+            val timeline = if (tracksByNumber[trackNumber]?.codecId.equals(MATROSKA_PGS_CODEC_ID, ignoreCase = true)) {
                 buildPgsIndexedTimeline(
                     sorted = sorted,
                     peerDialogueCueCount = peerDialogueCueCount,
@@ -1165,6 +1180,9 @@ internal object EmbeddedSubtitleTimelineLoader {
             } else {
                 buildDefaultIndexedTimeline(sorted)
             }
+            timeline.copy(readPoints = sorted.mapNotNull { cue ->
+                cue.clusterPosition?.let { EmbeddedTextReadPoint(cue.startTimeMs, it, cue.relativePosition, cue.explicitDurationMs) }
+            })
         }
     }
 
@@ -1742,16 +1760,21 @@ internal object EmbeddedSubtitleTimelineLoader {
     private data class CueTrackPosition(
         val trackNumber: Int,
         val durationTicks: Long?,
+        val clusterPosition: Long? = null,
+        val relativePosition: Long? = null,
     )
 
     private data class PendingIndexedCue(
         val startTimeMs: Long,
         val explicitDurationMs: Long?,
+        val clusterPosition: Long? = null,
+        val relativePosition: Long? = null,
     )
 
     private data class IndexedSubtitleTimeline(
         val cues: List<SubtitleSyncCue>,
         val estimatedEndStartsMs: Set<Long>,
+        val readPoints: List<EmbeddedTextReadPoint> = emptyList(),
     )
 }
 
@@ -1763,4 +1786,5 @@ internal data class IndexedEmbeddedTimeline(
     val loadMs: Long,
     val skipLiveFallbackWait: Boolean = false,
     val noSubtitleTracks: Boolean = false,
+    val textSources: List<EmbeddedTextReadSource> = emptyList(),
 )

@@ -9,6 +9,25 @@ import org.junit.Test
 import java.io.IOException
 
 class IntroAcquisitionTest {
+    @Test fun indexedMatroskaTextUsesCueOffsetsAndChecksTrackAndTimestamp() {
+        val time = byteArrayOf(0xE7.toByte(), 0x82.toByte(), 0x03, 0xE8.toByte())
+        val payload = byteArrayOf(0x81.toByte(), 0, 10, 0) + "[Theme music]".toByteArray()
+        val block = byteArrayOf(0xA3.toByte(), (0x80 or payload.size).toByte()) + payload
+        val content = time + block
+        val bytes = byteArrayOf(0x1F, 0x43, 0xB6.toByte(), 0x75, (0x80 or content.size).toByte()) + content + ByteArray(32)
+        val point = EmbeddedTextReadPoint(1010, 0, 4, null)
+        val source = EmbeddedTextReadSource(1, "S_TEXT/UTF8", "SDH", 0, 1_000_000, listOf(point))
+        fun read(at: Long, n: Int) = bytes.copyOfRange(at.toInt(), at.toInt() + n)
+        val cue = IndexedIntroSubtitles.decodePoint(source, point, ::read)
+        assertNotNull(cue)
+        assertEquals("[Theme music]", cue!!.text)
+        assertEquals(1010L, cue.startMs)
+        assertEquals(1011L, cue.endMs)
+        assertNull(IndexedIntroSubtitles.decodePoint(source.copy(track = 2), point, ::read))
+        assertNull(IndexedIntroSubtitles.decodePoint(source, point.copy(timeMs = 3000), ::read))
+        assertNull(IndexedIntroSubtitles.decodePoint(source, point.copy(clusterPosition = Long.MAX_VALUE), ::read))
+    }
+
     @Test fun descriptiveSubtitlesAndNativePacketDecoding() {
         assertTrue(IntroSubtitlePolicy.descriptive("English SDH"))
         assertFalse(IntroSubtitlePolicy.descriptive("Chinese"))

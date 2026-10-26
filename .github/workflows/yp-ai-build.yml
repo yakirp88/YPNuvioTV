@@ -74,6 +74,7 @@ jobs:
             --tests 'com.nuvio.tv.core.diagnostics.YpCrashReportTextTest' \
             --tests 'com.nuvio.tv.core.intro.GeminiHttpTransportTest' \
             --tests 'com.nuvio.tv.core.intro.IntroAcquisitionTest' \
+            --tests 'com.nuvio.tv.ui.screens.player.autosync.EmbeddedSubtitleTimelineLoaderTest' \
             :app:assembleFullDebug --configure-on-demand --max-workers=1 --no-daemon
       - name: Prepare distribution
         if: env.SIGNING_KEY != ''

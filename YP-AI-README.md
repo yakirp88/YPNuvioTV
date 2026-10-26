@@ -62,6 +62,16 @@ boundary images and corrections. The automatic setting is stored, but automatic
 publishing is disabled until confidence is calibrated. Audio analysis is not implemented.
 Actual TV playback, phone approval and authenticated reporting need device verification.
 
+## Independent subtitle acquisition (0.3.7+)
+
+Collection does not depend on the displayed subtitle, and changing viewing subtitles or delay does not cancel an active analysis. It reads indexed Matroska subtitle blocks directly using Cues/cluster offsets and bounded small ranges, uses a separate MediaExtractor for other supported text containers, and checks text already observed by Media3, installed subtitle sources, and the official public OpenSubtitles v3 provider. The extra provider receives the movie/episode ID, not media URLs, headers or AI keys. Its availability is best effort; failures appear separately in debug logs. The live public provider returned HTTP 403 from the development environment, so real external-provider access still needs device verification.
+
+SDH labels and bracketed/music descriptions improve candidate ranking. Automatic external timing requires strong agreement with embedded timestamps across the episode; a title or similar duration alone is insufficient. Unmatched candidates are rejected. A user-selected caption retains its explicit delay and decoding path. Nothing changes the selected player track. Native extraction samples the opening/ending windows, not the entire movie, and timestamp-only samples are not exact cue end boundaries. Bitmap/PGS subtitles need OCR, which is not implemented.
+
+## Google availability checks (0.3.7+)
+
+The device's small inference probe also returned HTTP 503/UNAVAILABLE in log jVXUZ. That is an HTTP response, not evidence of absent network connectivity. A request now tries Gemini 3.8 Flash, then the documented Gemini 3.6 Flash on 502/503/504. Analysis has at most three attempts and a four-minute overall budget; the explicit small probe has at most two attempts and 65 seconds. Auth, quota and malformed requests do not trigger model switching. The same personal Google key is used only at the fixed Google endpoint; a successful small probe does not establish subscription tier or successful video analysis.
+
 ## Development rule
 
 Commit each completed change to `yp/ai-intro`, update CHANGELOG.md, push, inspect

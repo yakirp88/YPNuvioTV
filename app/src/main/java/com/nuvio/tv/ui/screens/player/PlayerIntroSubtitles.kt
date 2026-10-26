@@ -23,8 +23,12 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
     val acquisitionDeadline = System.nanoTime() + 60_000_000_000L
     val source = currentStreamUrl.orEmpty()
     val candidates = mutableListOf<IntroCaptionCandidate>()
-    val embedded = async { optional(emptyList()) { EmbeddedIntroSubtitles.read(source, getCurrentHeaders(), duration) } }
     val index = async { optional(null) { EmbeddedSubtitleTimelineLoader.load(source, getCurrentHeaders()) } }
+    val embedded = async { optional(emptyList()) {
+        val plan = index.await()
+        if (!plan?.textSources.isNullOrEmpty()) IndexedIntroSubtitles.read(source, getCurrentHeaders(), duration, plan!!.textSources)
+        else EmbeddedIntroSubtitles.read(source, getCurrentHeaders(), duration)
+    } }
     val movie = contentType.equals("movie", true)
     val id = if (movie) imdb else "$imdb:$season:$episode"
     val public = async {
