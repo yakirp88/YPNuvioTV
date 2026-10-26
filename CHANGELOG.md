@@ -14,7 +14,7 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Google text-only and visual requests now try the documented Gemini 3.6 Flash model after availability failures on 3.8 Flash. At most three analysis attempts/two probe attempts within overall deadlines; no model fallback for auth, quota or bad requests. Live diagnostics identify model, source selection, extracted counts, descriptions and rejected candidates without raw text/URLs/keys.
 
 ### Verification
-- Build and targeted acquisition/model-route/privacy tests pending. Real embedded-container support, subtitle alignment accuracy and Google service access require device testing. The device log shows a real 503/UNAVAILABLE response even for the small probe, not a demonstrated lack of network connectivity.
+- GitHub Actions run 40406708157 passed the universal Android build, selected acquisition/model-route/privacy and embedded timeline unit suites, 61 analyzer/review checks and ICU compatibility checks. Real embedded-container support, subtitle alignment accuracy and Google service access require device testing. The public subtitle provider returned HTTP 403 from the build environment, so provider access also needs a device check. The device log shows a real 503/UNAVAILABLE response even for the small probe, not a demonstrated lack of network connectivity.
 - Text extraction remains best effort. No bitmap OCR, audio detector, adaptive video refinement or automatic AI publication is implemented.
 
 ## [0.3.6] — 2026-10-26
