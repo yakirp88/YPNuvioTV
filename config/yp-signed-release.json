@@ -1,12 +1,13 @@
 {
-  "version": "0.3.4",
-  "source_sha": "27834b008f15a95d92c190ecce19464740a4c5e8",
-  "sha256": "57cc1769d4edd1f5837f2870391bc7609491e9b669946ae14644d3dcc3c045ee",
+  "version": "0.3.5",
+  "source_sha": "a70fd2e73140e63577082a8185b7588fd358c584",
+  "sha256": "0336e2ac6647aa5a7211b763aeb562c645c545ada80bf37ebe8dc5daccb21491",
   "size_bytes": 155980648,
-  "version_code": 500011,
+  "version_code": 500012,
   "build_artifact": {
-    "run_id": 40303335843,
-    "name": "yp-ai-signing-input-11"
+    "run_id": 40369825483,
+    "name": "yp-ai-signing-input-12"
   },
-  "release_target_sha": "831850dd38280d2fbf59d42d1fe1fa368a0f56f9"
+  "release_target_sha": "403e0cc36b4fd2b40f5ea9e246a083bc77ed4975",
+  "release_summary": "Fixes the short default read/write timeouts in visual cloud analysis, preserves network failure classification and logs actual visual requests/results. Delayed-response, deadline, body-timeout and cancellation regression tests passed."
 }
