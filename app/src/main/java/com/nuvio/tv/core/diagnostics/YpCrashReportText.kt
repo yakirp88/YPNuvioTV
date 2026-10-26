@@ -11,6 +11,7 @@ internal object YpCrashReportText {
     fun safeDetectionStatus(value: String): String = value.takeIf {
         it in setOf("waiting", "lookup", "subtitles", "cloud", "media", "proposals", "already_reported",
             "missing_metadata", "lookup_failed", "cloud_disabled", "no_evidence", "no_proposals",
+            "network_failed", "network_timeout", "dns_failed", "tls_failed", "response_invalid", "output_invalid", "output_token_limit", "output_blocked", "media_unavailable",
             "analysis_failed", "cloud_failed", "automatic_unavailable", "completed", "visual_completed", "visual_unavailable", "not_requested") || it.matches(Regex("http_[1-5][0-9]{2}"))
     } ?: "analysis_failed"
     fun safeToken(value: String): String = value.takeIf { token.matches(it) } ?: "redacted"

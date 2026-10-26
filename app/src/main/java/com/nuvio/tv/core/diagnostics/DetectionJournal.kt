@@ -22,3 +22,13 @@ internal class DetectionJournal {
 
     @Synchronized fun text(): String = "NUVIO YP DETECTION LOG\nsession_time_ms=$startedAt\n" + lines.joinToString("\n")
 }
+
+/** Owned by one playback collector, independently of transient review/timeline identities. */
+internal class DetectionJournalSession(private val begin: () -> Unit) {
+    private var started = false
+    fun ensureStarted() {
+        if (started) return
+        started = true
+        begin()
+    }
+}

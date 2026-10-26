@@ -7,6 +7,31 @@ import org.junit.Test
 
 class YpCrashReportTextTest {
     @Test
+    fun `review rebinds cannot restart the playback journal or erase its failure`() {
+        val journal = DetectionJournal()
+        var resets = 0
+        val session = DetectionJournalSession { resets++; journal.begin(1000) }
+        session.ensureStarted()
+        journal.add("failure", "network_timeout", emptyMap(), 1100)
+        repeat(5) { session.ensureStarted() }
+        assertEquals(1, resets)
+        assertTrue(journal.text().contains("network_timeout"))
+        val next = DetectionJournalSession { journal.begin(2000) }
+        next.ensureStarted()
+        assertFalse(journal.text().contains("network_timeout"))
+    }
+
+    @Test
+    fun `cloud failures expose fixed categories without exception messages`() {
+        val failure = com.nuvio.tv.core.intro.GeminiIntroAnalyzer.Failure(
+            com.nuvio.tv.core.intro.GeminiIntroAnalyzer.FailureKind.DNS)
+        assertEquals("dns_failed", com.nuvio.tv.ui.screens.player.cloudFailureStatus(failure))
+        assertEquals("output_invalid", com.nuvio.tv.ui.screens.player.cloudFailureStatus(IllegalArgumentException("secret-key")))
+        assertEquals("cloud_failed", com.nuvio.tv.ui.screens.player.cloudFailureStatus(RuntimeException("https://private")))
+        assertEquals("media_unavailable", YpCrashReportText.safeDetectionStatus("media_unavailable"))
+    }
+
+    @Test
     fun `extended journal is bounded and cannot accept free text or credential fields`() {
         val journal = DetectionJournal()
         journal.begin(1000)

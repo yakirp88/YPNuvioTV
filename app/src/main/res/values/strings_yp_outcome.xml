@@ -11,4 +11,9 @@
     <string name="yp_detection_status_code">Diagnostic status: %1$s</string>
     <string name="yp_detection_diagnostic_hint">Photograph this screen, or open Settings → YP segment detection → Crash diagnostics / screenshot.</string>
     <string name="yp_detection_automatic_unavailable">Automatic publishing is not available in this experimental version. Select review at episode end to inspect and approve proposals.</string>
+    <string name="yp_detection_network">Could not communicate with Google. The diagnostic code distinguishes connection, timeout, DNS and TLS failures.</string>
+    <string name="yp_detection_response">The AI response could not be parsed or its proposed ranges were invalid.</string>
+    <string name="yp_detection_output_limit">The AI response hit its output-token limit before completing.</string>
+    <string name="yp_detection_blocked">The AI service blocked the response.</string>
+    <string name="yp_detection_media_unavailable">Video frames could not be extracted from this stream. This is not a Google-key error.</string>
 </resources>

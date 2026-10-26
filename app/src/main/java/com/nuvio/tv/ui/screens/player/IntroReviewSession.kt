@@ -47,7 +47,6 @@ internal class IntroReviewSession(
         if (identity == mediaIdentity) return
         jobs.values.forEach { it.cancel() }; jobs.clear()
         submissionJob?.cancel()
-        if (mediaIdentity.isNotEmpty()) com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.beginDetectionLog()
         identity = mediaIdentity
         dismissed = false
         attempted.clear()

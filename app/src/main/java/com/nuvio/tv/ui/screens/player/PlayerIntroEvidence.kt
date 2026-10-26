@@ -45,6 +45,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
         }) {
             YpCrashDiagnostics.markStage("player_ready")
             val completed = linkedMapOf<String, String>()
+            val journalSession = com.nuvio.tv.core.diagnostics.DetectionJournalSession(YpCrashDiagnostics::beginDetectionLog)
             val checked = mutableMapOf<String, Set<String>>()
             val enabled = combine(store.revision, profiles.activeProfileId) { _, activeId ->
                 (activeId == profileId && store.enabled(profileId)) to (if (activeId == profileId) store.cloudKey(profileId) else null)
@@ -71,6 +72,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.AWAITING_MEDIA_ANALYZER) }
                         return@collectLatest
                     }
+                    journalSession.ensureStarted()
                     review.reserve()
                     YpCrashDiagnostics.logDetectionEvent("settings", metrics = mapOf(
                         "cloud_enabled" to if (on.second != null) 1L else 0L,
@@ -176,13 +178,17 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                             proposals = com.nuvio.tv.core.intro.GeminiIntroAnalyzer.analyze(cloudKey, cues, durationMs, missing)
                                 cloudStatus = "completed"
                             } catch (cancelled: CancellationException) { throw cancelled }
-                            catch (error: Exception) { cloudStatus = cloudFailureStatus(error) }
+                            catch (error: Exception) {
+                                cloudStatus = cloudFailureStatus(error)
+                                YpCrashDiagnostics.logDetectionEvent("failure", cloudStatus)
+                            }
                         }
                         YpCrashDiagnostics.logDetectionEvent("cloud_result", cloudStatus, mapOf("proposal_count" to proposals.size.toLong()))
                         review.offer(reviewIdentity, proposals, durationMs)
                         // Subtitle results are proposals, not certainty: continue quietly with visual evidence.
                         if (cloudKey != null && store.cloudKey(profileId) == cloudKey) {
                             _uiState.update { it.copy(introDetectionPhase = IntroDetectionPhase.ANALYZING_MEDIA) }
+                            var visualRequestStarted = false
                             try {
                                 review.status("media")
                                 YpCrashDiagnostics.markStage("intro_media")
@@ -193,13 +199,18 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                                 YpCrashDiagnostics.logDetectionEvent("media_sample", metrics = mapOf("frame_count" to frames.size.toLong()))
                                 if (frames.isNotEmpty()) {
                                     currentCoroutineContext().ensureActive()
+                                    visualRequestStarted = true
                                     val visual = com.nuvio.tv.core.intro.GeminiIntroAnalyzer.analyze(
                                         cloudKey, evidenceCues, durationMs, missing, frames)
                                     if (visual.isNotEmpty()) proposals = visual
                                     cloudStatus = "visual_completed"
                                 } else if (cloudStatus == "not_requested") cloudStatus = "visual_unavailable"
                             } catch (cancelled: CancellationException) { throw cancelled }
-                            catch (error: Exception) { if (proposals.isEmpty()) cloudStatus = cloudFailureStatus(error) }
+                            catch (error: Exception) {
+                                val failure = if (visualRequestStarted) cloudFailureStatus(error) else "media_unavailable"
+                                YpCrashDiagnostics.logDetectionEvent("failure", failure)
+                                if (proposals.isEmpty() && !isCloudFailureStatus(cloudStatus)) cloudStatus = failure
+                            }
                         }
                         currentCoroutineContext().ensureActive()
                         if (profiles.activeProfileId.value != profileId) return@collectLatest
@@ -207,7 +218,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         review.offer(reviewIdentity, proposals, durationMs)
                         review.status(when {
                             proposals.isNotEmpty() && store.snapshot(profileId).submissionMode == com.nuvio.tv.core.intro.IntroSubmissionMode.REVIEW_AT_EPISODE_END -> "proposals"
-                            cloudStatus.startsWith("http_") || cloudStatus == "cloud_failed" -> cloudStatus
+                            isCloudFailureStatus(cloudStatus) || cloudStatus == "media_unavailable" -> cloudStatus
                             cloudKey == null -> "cloud_disabled"
                             store.snapshot(profileId).submissionMode != com.nuvio.tv.core.intro.IntroSubmissionMode.REVIEW_AT_EPISODE_END -> "automatic_unavailable"
                             body.isBlank() && cloudStatus == "not_requested" -> "no_evidence"

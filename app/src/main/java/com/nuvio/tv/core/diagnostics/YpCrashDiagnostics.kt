@@ -80,7 +80,7 @@ internal object YpCrashDiagnostics {
     fun beginDetectionLog() {
         if (!::app.isInitialized) return
         detectionJournal.begin(System.currentTimeMillis())
-        logDetectionEvent("session")
+        persistDetectionLog()
     }
 
     fun recordDetectionStatus(status: String) = logDetectionEvent("status", status)
@@ -88,6 +88,10 @@ internal object YpCrashDiagnostics {
     fun logDetectionEvent(event: String, status: String = "waiting", metrics: Map<String, Long> = emptyMap()) {
         if (!::app.isInitialized) return
         detectionJournal.add(event, status, metrics, System.currentTimeMillis())
+        persistDetectionLog()
+    }
+
+    private fun persistDetectionLog() {
         scope.launch { runCatching { synchronized(this@YpCrashDiagnostics) { write("detection.txt", detectionJournal.text(), 24_000) } } }
     }
 

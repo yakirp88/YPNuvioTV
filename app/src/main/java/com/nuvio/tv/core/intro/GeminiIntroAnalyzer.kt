@@ -18,6 +18,8 @@ import org.json.JSONObject
 /** Personal-key, opt-in subtitle analysis. No logging, redirects, tools or publication. */
 internal object GeminiIntroAnalyzer {
     class HttpFailure(val status: Int) : IOException("Gemini HTTP failure")
+    enum class FailureKind { NETWORK, TIMEOUT, DNS, TLS, RESPONSE, OUTPUT, OUTPUT_LIMIT, BLOCKED }
+    class Failure(val kind: FailureKind) : IOException("Gemini analysis failure")
     private const val MODEL = "gemini-3.8-flash"
     private val client = OkHttpClient.Builder()
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
@@ -75,9 +77,16 @@ internal object GeminiIntroAnalyzer {
             .header("x-goog-api-key", key)
             .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
         val responseText = execute(request)
-        val candidates = JSONObject(responseText).optJSONArray("candidates") ?: return emptyList()
-        val candidate = candidates.optJSONObject(0) ?: return emptyList()
-        require(candidate.optString("finishReason") == "STOP") { "Incomplete model output" }
+        val document = JSONObject(responseText)
+        if (document.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty().isNotBlank()) throw Failure(FailureKind.BLOCKED)
+        val candidates = document.optJSONArray("candidates") ?: throw Failure(FailureKind.RESPONSE)
+        val candidate = candidates.optJSONObject(0) ?: throw Failure(FailureKind.RESPONSE)
+        when (candidate.optString("finishReason")) {
+            "STOP" -> Unit
+            "MAX_TOKENS" -> throw Failure(FailureKind.OUTPUT_LIMIT)
+            "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT" -> throw Failure(FailureKind.BLOCKED)
+            else -> throw Failure(FailureKind.OUTPUT)
+        }
         val parts = candidate.getJSONObject("content").getJSONArray("parts")
         val text = (0 until parts.length()).map { parts.getJSONObject(it) }
             .filter { !it.optBoolean("thought", false) }.joinToString("") { it.optString("text") }
@@ -103,7 +112,12 @@ internal object GeminiIntroAnalyzer {
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                if (!continuation.isCancelled) continuation.resumeWithException(IOException("Gemini request failed"))
+                if (!continuation.isCancelled) continuation.resumeWithException(Failure(when (e) {
+                    is java.net.SocketTimeoutException -> FailureKind.TIMEOUT
+                    is java.net.UnknownHostException -> FailureKind.DNS
+                    is javax.net.ssl.SSLException -> FailureKind.TLS
+                    else -> FailureKind.NETWORK
+                }))
             }
             override fun onResponse(call: Call, response: Response) {
                 try {
@@ -119,7 +133,7 @@ internal object GeminiIntroAnalyzer {
                         if (!continuation.isCancelled) continuation.resumeWithException(error)
                         return
                     }
-                    if (!continuation.isCancelled) continuation.resumeWithException(IOException("Gemini response rejected"))
+                    if (!continuation.isCancelled) continuation.resumeWithException(Failure(FailureKind.RESPONSE))
                 }
             }
         })

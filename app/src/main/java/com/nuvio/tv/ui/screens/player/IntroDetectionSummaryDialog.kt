@@ -12,6 +12,11 @@ import com.nuvio.tv.ui.components.NuvioDialog
 internal fun IntroDetectionSummaryDialog(status: String, onDismiss: () -> Unit) {
     val message = when (status) {
         "waiting", "lookup", "subtitles", "cloud", "media" -> R.string.yp_detection_running
+        "network_failed", "network_timeout", "dns_failed", "tls_failed" -> R.string.yp_detection_network
+        "response_invalid", "output_invalid" -> R.string.yp_detection_response
+        "output_token_limit" -> R.string.yp_detection_output_limit
+        "output_blocked" -> R.string.yp_detection_blocked
+        "media_unavailable" -> R.string.yp_detection_media_unavailable
         "already_reported" -> R.string.yp_detection_existing
         "missing_metadata" -> R.string.yp_detection_metadata
         "lookup_failed" -> R.string.yp_detection_lookup_failed

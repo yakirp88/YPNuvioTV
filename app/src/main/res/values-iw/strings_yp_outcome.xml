@@ -11,4 +11,9 @@
     <string name="yp_detection_status_code">סטטוס לאבחון: %1$s</string>
     <string name="yp_detection_diagnostic_hint">אפשר לצלם מסך זה, או לפתוח הגדרות ← זיהוי מקטעים YP ← פרטי קריסה / צילום מסך.</string>
     <string name="yp_detection_automatic_unavailable">שליחה אוטומטית אינה זמינה בגרסה הניסיונית. יש לבחור בדיקה בסיום הפרק כדי לראות ולאשר הצעות.</string>
+    <string name="yp_detection_network">התקשורת עם Google נכשלה. קוד האבחון מבדיל בין חיבור, זמן המתנה, DNS ו־TLS.</string>
+    <string name="yp_detection_response">לא ניתן לפענח את תשובת ה־AI או שהגבולות שהוצעו אינם תקינים.</string>
+    <string name="yp_detection_output_limit">תשובת ה־AI הגיעה למגבלת הפלט לפני שהושלמה.</string>
+    <string name="yp_detection_blocked">שירות ה־AI חסם את התשובה.</string>
+    <string name="yp_detection_media_unavailable">לא ניתן לחלץ תמונות וידאו מהמקור הזה. זו אינה שגיאה במפתח Google.</string>
 </resources>
