@@ -72,7 +72,7 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
         if (System.nanoTime() >= acquisitionDeadline) break
         val result = optional<List<SubtitleEvidenceAnalyzer.Cue>>(emptyList()) {
             val body = withTimeoutOrNull(9000) {
-                if (extra.any { it.url == subtitle.url } && subtitle.headers.isNullOrEmpty()) PublicIntroSubtitles.download(subtitle.url)
+                if (subtitle.url != chosen?.url && extra.any { it.url == subtitle.url } && subtitle.headers.isNullOrEmpty()) PublicIntroSubtitles.download(subtitle.url)
                 else downloadSubtitleBody(subtitle.url, subtitle.lang, subtitle.headers)
             }.orEmpty()
             if (body.length > 2_000_000) emptyList() else withContext(Dispatchers.Default) {

@@ -3,7 +3,7 @@
     <string name="yp_intro_title">YP Intro Detection</string>
     <string name="yp_intro_subtitle">Experimental evidence collection for automatic segment detection</string>
     <string name="yp_intro_collect">Collect subtitle evidence</string>
-    <string name="yp_intro_collect_description">Analyze the selected add-on subtitle in the background. Results stay on this device.</string>
+    <string name="yp_intro_collect_description">Read embedded text and search installed add-ons plus OpenSubtitles. External search sends the content ID to OpenSubtitles. Prefer SDH and check timing before automatic use. Results stay on this device.</string>
     <string name="yp_intro_phase_notice">AI suggestions require review. At episode end, confirm the boundary images before sending to IntroDB. Automatic publication remains disabled until detection accuracy is validated.</string>
     <string name="yp_intro_ai_key">Personal Gemini API key</string>
     <string name="yp_intro_db_key">Personal IntroDB API key</string>

@@ -3,7 +3,7 @@
     <string name="yp_intro_title">זיהוי מקטעים YP</string>
     <string name="yp_intro_subtitle">איסוף ראיות ניסיוני לזיהוי מקטעים אוטומטי</string>
     <string name="yp_intro_collect">איסוף ראיות מכתוביות</string>
-    <string name="yp_intro_collect_description">ניתוח כתוביות התוסף שנבחרו ברקע. התוצאות נשמרות במכשיר הזה.</string>
+    <string name="yp_intro_collect_description">קריאת כתוביות טקסט מובנות וחיפוש בתוספים וב־OpenSubtitles. בחיפוש החיצוני נשלח מזהה התוכן ל־OpenSubtitles. עדיפות ל־SDH ובדיקת התאמת תזמון לפני שימוש אוטומטי. התוצאות נשמרות במכשיר.</string>
     <string name="yp_intro_phase_notice">הצעות ה־AI דורשות בדיקה. בסיום הפרק יש לאשר את תמונות הגבולות לפני השליחה ל־IntroDB. שליחה אוטומטית תישאר חסומה עד לאימות דיוק הזיהוי.</string>
     <string name="yp_intro_ai_key">מפתח API אישי ל־Gemini</string>
     <string name="yp_intro_db_key">מפתח API אישי ל־IntroDB</string>
