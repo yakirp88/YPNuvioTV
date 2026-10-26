@@ -67,7 +67,7 @@ internal suspend fun PlayerRuntimeController.collectIntroSubtitles(imdb: String,
     val references = index.await()?.tracks.orEmpty().map { it.cues.map { cue -> cue.startTimeMs } }
     val chosen = uiState.value.selectedAddonSubtitle
     val extra = public.await()
-    val pool = (listOfNotNull(chosen) + installed + extra).distinctBy { it.url }
+    val pool = (listOfNotNull(chosen) + uiState.value.addonSubtitles + installed + extra).distinctBy { it.url }
         .sortedByDescending { (if (it.url == chosen?.url) 1000 else 0) + (if (IntroSubtitlePolicy.descriptive(it.id)) 100 else if (it.lang.startsWith("en")) 20 else 0) }
         .take(8)
     YpCrashDiagnostics.logDetectionEvent("subtitle_search", metrics = mapOf("candidate_count" to pool.size.toLong()))
