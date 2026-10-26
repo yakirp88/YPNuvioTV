@@ -181,6 +181,8 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                             catch (error: Exception) {
                                 cloudStatus = cloudFailureStatus(error)
                                 YpCrashDiagnostics.logDetectionEvent("failure", cloudStatus)
+                                if (error is com.nuvio.tv.core.intro.GeminiIntroAnalyzer.HttpFailure)
+                                    YpCrashDiagnostics.logDetectionEvent("provider_reason", error.reason)
                             }
                         }
                         YpCrashDiagnostics.logDetectionEvent("cloud_result", cloudStatus, mapOf("proposal_count" to proposals.size.toLong()))
@@ -214,6 +216,8 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                             catch (error: Exception) {
                                 val failure = if (visualRequestStarted) cloudFailureStatus(error) else "media_unavailable"
                                 YpCrashDiagnostics.logDetectionEvent("failure", failure)
+                                if (error is com.nuvio.tv.core.intro.GeminiIntroAnalyzer.HttpFailure)
+                                    YpCrashDiagnostics.logDetectionEvent("provider_reason", error.reason)
                                 if (proposals.isEmpty() && !isCloudFailureStatus(cloudStatus)) cloudStatus = failure
                             }
                         }

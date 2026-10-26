@@ -77,22 +77,39 @@ internal object YpCrashDiagnostics {
 
     private val detectionJournal = DetectionJournal()
 
-    fun beginDetectionLog() {
+    private val _liveDetection = MutableStateFlow(DetectionSnapshot())
+    val liveDetection = _liveDetection.asStateFlow()
+
+    @Synchronized fun resetLiveDetectionLog() {
+        detectionJournal.reset()
+        _liveDetection.value = DetectionSnapshot()
+    }
+
+    @Synchronized fun beginDetectionLog() {
         if (!::app.isInitialized) return
+        if (detectionJournal.snapshot().startedAt != 0L) return
         detectionJournal.begin(System.currentTimeMillis())
+        _liveDetection.value = detectionJournal.snapshot()
         persistDetectionLog()
     }
 
     fun recordDetectionStatus(status: String) = logDetectionEvent("status", status)
 
-    fun logDetectionEvent(event: String, status: String = "waiting", metrics: Map<String, Long> = emptyMap()) {
+    @Synchronized fun logDetectionEvent(event: String, status: String = "waiting", metrics: Map<String, Long> = emptyMap()) {
         if (!::app.isInitialized) return
+        if (detectionJournal.snapshot().startedAt == 0L) return
         detectionJournal.add(event, status, metrics, System.currentTimeMillis())
+        _liveDetection.value = detectionJournal.snapshot()
         persistDetectionLog()
     }
 
+    private var journalRevision = 0L
     private fun persistDetectionLog() {
-        scope.launch { runCatching { synchronized(this@YpCrashDiagnostics) { write("detection.txt", detectionJournal.text(), 24_000) } } }
+        val text = detectionJournal.text()
+        val revision = ++journalRevision
+        scope.launch { runCatching { synchronized(this@YpCrashDiagnostics) {
+            if (revision == journalRevision) write("detection.txt", text, 24_000)
+        } } }
     }
 
     suspend fun latestDetectionLog(): String = withContext(Dispatchers.IO) {

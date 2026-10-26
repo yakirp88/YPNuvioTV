@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="yp_debug_show">הצגת דיבאג זיהוי YP</string>
+    <string name="yp_debug_hide">הסתרת דיבאג זיהוי YP</string>
+    <string name="yp_debug_probe">בדיקת חיבור לענן (בקשת API קטנה)</string>
+</resources>

@@ -62,6 +62,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
@@ -200,6 +201,9 @@ fun PlayerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val introReviewState by viewModel.introReview.state.collectAsState()
+    val introDebugSnapshot by com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.liveDetection.collectAsState()
+    val introProbeStatus by viewModel.introProbeStatus.collectAsState()
+    var introDebugVisible by remember { mutableStateOf(false) }
     if (uiState.playbackEnded && uiState.introReviewPending && uiState.error == null && introReviewState.segments.isNotEmpty()) {
         IntroSegmentReviewDialog(
             segments = introReviewState.segments,
@@ -1547,6 +1551,10 @@ fun PlayerScreen(
                 playerBadges = playerBadges,
                 viewModel = viewModel,
                 subtitleReportingActive = playerControlsVisible,
+                introDebugVisible = introDebugVisible,
+                introProbeRunning = introProbeStatus == "probe_running",
+                onToggleIntroDebug = { introDebugVisible = !introDebugVisible },
+                onCheckIntroCloud = viewModel::checkIntroCloudConnection,
                 onSubtitleClearanceChanged = {
                     if (latestPlayerControlsVisible) subtitleControlsClearancePx = it
                 },
@@ -2080,8 +2088,13 @@ fun PlayerScreen(
             )
         }
 
+        if (introDebugVisible) {
+            IntroDetectionDebugOverlay(introDebugSnapshot, introReviewState.status, introProbeStatus,
+                Modifier.align(AbsoluteAlignment.TopLeft).padding(20.dp).zIndex(4.1f))
+        }
+
         IntroDetectionIndicator(
-            visible = uiState.introDetectionPhase.showsIndicator() &&
+            visible = !introDebugVisible && uiState.introDetectionPhase.showsIndicator() &&
                 !uiState.playbackEnded && uiState.error == null,
             modifier = Modifier.align(AbsoluteAlignment.TopLeft).padding(24.dp).zIndex(4f)
         )
@@ -2645,6 +2658,10 @@ private fun PlayerControlsOverlay(
     reportCodeVisible: Boolean,
     skipButtonVisible: Boolean = false,
     subtitleReportingActive: Boolean = true,
+    introDebugVisible: Boolean = false,
+    introProbeRunning: Boolean = false,
+    onToggleIntroDebug: () -> Unit = {},
+    onCheckIntroCloud: () -> Unit = {},
     onSubtitleClearanceChanged: (Float) -> Unit = {},
     onSubtitleTitleBoundsChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
@@ -3042,6 +3059,27 @@ private fun PlayerControlsOverlay(
                                 )
                             }
                         }
+                    }
+
+                    ControlButton(
+                        icon = Icons.Default.BugReport,
+                        contentDescription = stringResource(if (introDebugVisible) R.string.yp_debug_hide else R.string.yp_debug_show),
+                        onClick = onToggleIntroDebug,
+                        contentColor = if (introDebugVisible) Color(0xFF90CAF9) else Color.White,
+                        upFocusRequester = progressUpTarget,
+                        onDownKey = onHideControls,
+                        onFocused = onResetHideTimer
+                    )
+                    if (introDebugVisible) {
+                        ControlButton(
+                            icon = Icons.Default.CloudSync,
+                            contentDescription = stringResource(R.string.yp_debug_probe),
+                            onClick = onCheckIntroCloud,
+                            enabled = !introProbeRunning,
+                            upFocusRequester = progressUpTarget,
+                            onDownKey = onHideControls,
+                            onFocused = onResetHideTimer
+                        )
                     }
 
                     ControlButton(

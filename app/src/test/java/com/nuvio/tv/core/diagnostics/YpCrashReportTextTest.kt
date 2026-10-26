@@ -6,6 +6,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YpCrashReportTextTest {
+    @Test fun `live snapshot and translated panel expose only safe fixed data`() {
+        val journal = DetectionJournal()
+        journal.begin(1000)
+        journal.add("media_sample", "waiting", mapOf("frame_count" to 24L, "private-key" to 7L), 2000)
+        val snapshot = journal.snapshot()
+        val text = com.nuvio.tv.ui.screens.player.IntroDebugText.entry(snapshot.entries.last(), true)
+        assertTrue(text.contains("24"))
+        assertFalse(text.contains("private-key"))
+        journal.reset()
+        assertTrue(journal.snapshot().entries.isEmpty())
+        assertTrue(snapshot.entries.isNotEmpty())
+        assertFalse(com.nuvio.tv.ui.screens.player.IntroDebugText.status("https://secret?key=private", true).contains("secret"))
+        repeat(500) { journal.begin(3000L + it) }
+        assertEquals(1, journal.snapshot().entries.size)
+    }
+
     @Test
     fun `review rebinds cannot restart the playback journal or erase its failure`() {
         val journal = DetectionJournal()

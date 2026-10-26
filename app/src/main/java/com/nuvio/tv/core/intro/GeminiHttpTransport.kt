@@ -9,6 +9,13 @@ import javax.net.ssl.SSLException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import com.nuvio.tv.core.diagnostics.YpCrashDiagnostics
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -24,6 +31,33 @@ internal object GeminiHttpTransport {
         .readTimeout(120, TimeUnit.SECONDS)
         .callTimeout(180, TimeUnit.SECONDS)
         .build()
+
+    suspend fun executeWithRetry(client: OkHttpClient, request: Request,
+        pause: suspend (Long) -> Unit = { delay(it) },
+        onRetry: (Int, Int) -> Unit = { attempt, status ->
+            YpCrashDiagnostics.logDetectionEvent("cloud_retry", "retry_wait", mapOf("attempt" to attempt.toLong(), "http_status" to status.toLong()))
+        }
+    ): String {
+        try {
+            return withTimeout(240_000) {
+                var attempt = 1
+                while (true) {
+                    currentCoroutineContext().ensureActive()
+                    try { return@withTimeout execute(client, request) }
+                    catch (error: GeminiIntroAnalyzer.HttpFailure) {
+                        if (error.status !in setOf(502, 503, 504) || attempt >= 3) throw error
+                        attempt++
+                        onRetry(attempt, error.status)
+                        pause((1L shl (attempt - 2)) * 1000 + kotlin.random.Random.nextLong(0, 501))
+                    }
+                }
+                @Suppress("UNREACHABLE_CODE") error("Unreachable")
+            }
+        } catch (error: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            throw GeminiIntroAnalyzer.Failure(GeminiIntroAnalyzer.FailureKind.TIMEOUT)
+        }
+    }
 
     private fun failure(error: IOException) = GeminiIntroAnalyzer.Failure(when (error) {
         is SocketTimeoutException, is InterruptedIOException -> GeminiIntroAnalyzer.FailureKind.TIMEOUT
@@ -42,7 +76,14 @@ internal object GeminiHttpTransport {
             override fun onResponse(call: Call, response: Response) {
                 try {
                     val text = response.use {
-                        if (!it.isSuccessful) throw GeminiIntroAnalyzer.HttpFailure(it.code)
+                        if (!it.isSuccessful) {
+                            val source = it.body?.source()
+                            val reason = try {
+                                if (source == null || source.request(16_385)) "provider_unknown"
+                                else GeminiProviderError.reason(source.readUtf8())
+                            } catch (_: Exception) { "provider_unknown" }
+                            throw GeminiIntroAnalyzer.HttpFailure(it.code, reason)
+                        }
                         val source = requireNotNull(it.body).source()
                         require(!source.request(262_145)) { "Model response too large" }
                         source.readUtf8()

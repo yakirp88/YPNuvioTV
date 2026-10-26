@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="yp_debug_show">Show YP detection debug</string>
+    <string name="yp_debug_hide">Hide YP detection debug</string>
+    <string name="yp_debug_probe">Test cloud connection (small API request)</string>
+</resources>

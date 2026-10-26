@@ -4,6 +4,18 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-10-26
+
+### Added
+- Player control button toggles a passive top-left live detection panel. Shows plain-language current stage, six recent sanitized actions/results, counts and age of the last update in Hebrew/English; remains visible when player controls hide. No pause, focus capture or automatic upload.
+- A separate cloud-test button appears while debug is enabled. Explicitly sends a tiny text-only inference request (30-second deadline) using the configured key/model; discloses API quota/billing. Success verifies only the small request, not video detection or account tier.
+- Structurally allowlisted Google error status/reasons, excluding response messages, metadata, URLs, identifiers and keys. Error bodies are bounded to 16 KiB; unknown values are dropped.
+- Up to three attempts for HTTP 502/503/504 with exponential delay and jitter, within a four-minute overall analysis-request budget. Retries are visible in the journal/overlay. Authentication, billing/quota and other HTTP failures are not retried. Caller cancellation still stops work.
+
+### Verification
+- Build, transport/privacy and live-journal regression verification pending. Android TV layout, remote navigation and real API/device behavior require device testing.
+- Sparse initial video sampling remains experimental; audio analysis, adaptive boundary refinement and automatic AI publication are not implemented.
+
 ## [0.3.5] — 2026-10-26
 
 ### Distribution

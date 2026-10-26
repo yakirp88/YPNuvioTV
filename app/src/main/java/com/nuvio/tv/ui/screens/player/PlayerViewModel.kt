@@ -44,6 +44,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -160,7 +161,41 @@ class PlayerViewModel @Inject constructor(
 
     internal val introReview = IntroReviewSession(controller, introDetectionStore, introDetectionApi, profileManager, viewModelScope)
 
+    private val _introProbeStatus = kotlinx.coroutines.flow.MutableStateFlow("not_requested")
+    internal val introProbeStatus = _introProbeStatus.asStateFlow()
+    private var introProbeJob: kotlinx.coroutines.Job? = null
+
+    internal fun checkIntroCloudConnection() {
+        if (introProbeJob?.isActive == true) return
+        val capturedProfile = controller.profileId
+        introProbeJob = viewModelScope.launch {
+            try {
+            if (profileManager.activeProfileId.value != capturedProfile) return@launch
+            val key = introDetectionStore.cloudKey(capturedProfile)
+            if (key == null) { _introProbeStatus.value = "missing_key"; return@launch }
+            com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.beginDetectionLog()
+            _introProbeStatus.value = "probe_running"
+            com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.logDetectionEvent("cloud_probe_request", "probe_running")
+            val result = try {
+                com.nuvio.tv.core.intro.GeminiIntroAnalyzer.checkConnection(key)
+                "probe_ok"
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                if (error is com.nuvio.tv.core.intro.GeminiIntroAnalyzer.HttpFailure)
+                    com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.logDetectionEvent("provider_reason", error.reason)
+                cloudFailureStatus(error)
+            }
+            if (profileManager.activeProfileId.value == capturedProfile && introDetectionStore.cloudKey(capturedProfile) == key) {
+                _introProbeStatus.value = result
+                com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.logDetectionEvent("cloud_probe_result", result)
+            } else _introProbeStatus.value = "not_requested"
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { _introProbeStatus.value = "analysis_failed" }
+        }
+    }
+
     init {
+        com.nuvio.tv.core.diagnostics.YpCrashDiagnostics.resetLiveDetectionLog()
         controller.bindParty()
         controller.bindIntroEvidence(introDetectionStore, profileManager, introDetectionApi, introReview)
     }

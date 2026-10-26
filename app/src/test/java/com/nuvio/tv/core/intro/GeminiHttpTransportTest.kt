@@ -63,4 +63,56 @@ class GeminiHttpTransportTest {
             } catch (_: TimeoutCancellationException) { /* Do not wrap cancellation as a provider failure. */ }
         }
     }
+
+    @Test fun transientServerFailuresRetryWithBoundedBackoff() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(503).setBody("{}"))
+            server.enqueue(MockResponse().setResponseCode(502).setBody("{}"))
+            server.enqueue(MockResponse().setBody("ok"))
+            val waits = mutableListOf<Long>()
+            val attempts = mutableListOf<Int>()
+            val result = GeminiHttpTransport.executeWithRetry(GeminiHttpTransport.client(),
+                Request.Builder().url(server.url("/")).build(), pause = { waits.add(it); Unit },
+                onRetry = { attempt, _ -> attempts.add(attempt); Unit })
+            assertEquals("ok", result)
+            assertEquals(listOf(2, 3), attempts)
+            assertTrue(waits[0] in 1000L..1500L && waits[1] in 2000L..2500L)
+            assertEquals(3, server.requestCount)
+        }
+    }
+
+    @Test fun retriesStopAtThreeAndNeverRetryPermissionFailures() = runBlocking {
+        for (status in listOf(503, 403)) {
+            MockWebServer().use { server ->
+                repeat(3) { server.enqueue(MockResponse().setResponseCode(status).setBody("{}")) }
+                try {
+                    GeminiHttpTransport.executeWithRetry(GeminiHttpTransport.client(),
+                        Request.Builder().url(server.url("/")).build(), pause = {}, onRetry = { _, _ -> })
+                    fail("Expected HTTP failure")
+                } catch (error: GeminiIntroAnalyzer.HttpFailure) { assertEquals(status, error.status) }
+                assertEquals(if (status == 503) 3 else 1, server.requestCount)
+            }
+        }
+    }
+
+    @Test fun cancellationDuringBackoffPreventsAnotherRequest() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(503).setBody("{}"))
+            try {
+                GeminiHttpTransport.executeWithRetry(GeminiHttpTransport.client(),
+                    Request.Builder().url(server.url("/")).build(),
+                    pause = { throw kotlinx.coroutines.CancellationException("cancel") }, onRetry = { _, _ -> })
+                fail("Expected cancellation")
+            } catch (_: kotlinx.coroutines.CancellationException) { }
+            assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test fun providerDetailIsAllowlistedAndNeverCopiesTheMessage() {
+        val text = """{"error":{"status":"PERMISSION_DENIED","message":"private-key https://secret","details":[{"reason":"API_KEY_INVALID","metadata":{"key":"secret"}}]}}"""
+        assertEquals("provider_key_invalid", GeminiProviderError.reason(text))
+        assertEquals("provider_unknown", GeminiProviderError.reason("""{"error":{"status":"https://secret","message":"secret","details":[{"reason":"private-key"}]}}"""))
+        assertEquals("provider_unknown", GeminiProviderError.reason("bad"))
+        assertEquals("provider_unknown", GeminiProviderError.reason("x".repeat(16385)))
+    }
 }
