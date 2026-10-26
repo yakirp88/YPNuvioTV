@@ -4,25 +4,6 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
-## [0.3.3] — 2026-10-26
-
-### Fixed
-- Natural playback completion no longer cancels an active evidence collector or rejects late review proposals.
-- Reserve the end-of-episode review before remote analysis, preventing automatic episode navigation from winning the race. Closing the summary still releases navigation.
-- Offer subtitle proposals before optional native frame extraction, which may be slow or unsupported.
-- Preserve review edits when a visual result arrives after the review becomes visible.
-- Preserve numeric Gemini HTTP failures instead of flattening them into an uninformative IOException; preserve successful subtitle proposals when visual analysis fails.
-
-### Added
-- Bounded chronological detection log with fixed action names, elapsed times, numeric evidence counts, settings flags and sanitized HTTP outcomes.
-- Manual upload of the latest detection log to dpaste.org from diagnostics settings. Returns a copyable URL; requests 7-day expiry and discloses link access. No background uploads, credentials, response bodies or media/subtitle URLs.
-- End-of-episode status summary when review mode has no proposals, including in-progress, existing reports, missing metadata, lookup failures, disabled cloud and unsuccessful analysis.
-- Local sanitized detection status in screenshot/copy diagnostics. No API response bodies, keys or media URLs are included.
-
-### Verification
-- Device root cause is not yet confirmed. The completion race and silent-error paths were found by code inspection; user playback testing remains necessary.
-
-
 ## [0.3.2] — 2026-10-26
 
 ### Fixed
