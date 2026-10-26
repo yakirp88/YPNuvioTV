@@ -161,7 +161,7 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                         var proposals = emptyList<com.nuvio.tv.core.intro.AiSegmentProposal>()
                         var evidenceCues = emptyList<SubtitleEvidenceAnalyzer.Cue>()
                         val cloudKey = on.second
-                        if (cloudKey != null && store.cloudKey(profileId) == cloudKey) {
+                        if (cloudKey != null && body.isNotBlank() && store.cloudKey(profileId) == cloudKey) {
                             val cues = withContext(Dispatchers.Default) {
                                 PlayerSubtitleCueParser.parseFromText(body, subtitle?.url.orEmpty()).map {
                                     com.nuvio.tv.core.intro.SubtitleEvidenceAnalyzer.Cue(
@@ -200,10 +200,15 @@ internal fun PlayerRuntimeController.bindIntroEvidence(store: IntroDetectionStor
                                 if (frames.isNotEmpty()) {
                                     currentCoroutineContext().ensureActive()
                                     visualRequestStarted = true
+                                    review.status("cloud")
+                                    YpCrashDiagnostics.markStage("intro_cloud")
+                                    YpCrashDiagnostics.logDetectionEvent("cloud_request", metrics = mapOf(
+                                        "cue_count" to evidenceCues.size.toLong(), "frame_count" to frames.size.toLong()))
                                     val visual = com.nuvio.tv.core.intro.GeminiIntroAnalyzer.analyze(
                                         cloudKey, evidenceCues, durationMs, missing, frames)
                                     if (visual.isNotEmpty()) proposals = visual
                                     cloudStatus = "visual_completed"
+                                    YpCrashDiagnostics.logDetectionEvent("cloud_result", cloudStatus, mapOf("proposal_count" to visual.size.toLong()))
                                 } else if (cloudStatus == "not_requested") cloudStatus = "visual_unavailable"
                             } catch (cancelled: CancellationException) { throw cancelled }
                             catch (error: Exception) {

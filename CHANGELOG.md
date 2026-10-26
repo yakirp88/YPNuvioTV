@@ -4,6 +4,17 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-10-26
+
+### Fixed
+- Device log hfk22 reached 24 extracted frames, then failed with network_timeout after about 10.6 seconds. The cloud client set only the total deadline; OkHttp's 10-second read/write defaults still applied. Explicit budgets are now connect 20s, upload 60s, response read 120s and total 180s.
+- Preserve timeout/network classification when a response body fails mid-read; classify the total call deadline as a timeout too. Cancellation still cancels the underlying HTTP call; retries and redirects remain disabled.
+- Do not log an empty subtitle pass as a completed cloud analysis. Log the real visual cloud request and successful visual result with evidence/proposal counts.
+
+### Verification
+- A delayed local HTTP response beyond the old 10-second limit is covered by a regression test, alongside total-deadline, cancellation and response-body timeout cases. Build and device verification pending.
+- The log proves a timeout, not its underlying network/provider cause. These longer budgets do not establish that the user's key or service access works.
+
 ## [0.3.4] — 2026-10-26
 
 ### Fixed

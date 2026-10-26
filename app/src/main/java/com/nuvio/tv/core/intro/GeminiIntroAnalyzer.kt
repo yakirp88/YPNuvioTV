@@ -1,17 +1,9 @@
 package com.nuvio.tv.core.intro
 
 import java.io.IOException
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlinx.coroutines.suspendCancellableCoroutine
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -21,9 +13,7 @@ internal object GeminiIntroAnalyzer {
     enum class FailureKind { NETWORK, TIMEOUT, DNS, TLS, RESPONSE, OUTPUT, OUTPUT_LIMIT, BLOCKED }
     class Failure(val kind: FailureKind) : IOException("Gemini analysis failure")
     private const val MODEL = "gemini-3.8-flash"
-    private val client = OkHttpClient.Builder()
-        .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
-        .connectTimeout(15, TimeUnit.SECONDS).callTimeout(60, TimeUnit.SECONDS).build()
+    private val client = GeminiHttpTransport.client()
 
     suspend fun analyze(
         key: String,
@@ -76,7 +66,7 @@ internal object GeminiIntroAnalyzer {
             .url("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent")
             .header("x-goog-api-key", key)
             .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
-        val responseText = execute(request)
+        val responseText = GeminiHttpTransport.execute(client, request)
         val document = JSONObject(responseText)
         if (document.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty().isNotBlank()) throw Failure(FailureKind.BLOCKED)
         val candidates = document.optJSONArray("candidates") ?: throw Failure(FailureKind.RESPONSE)
@@ -107,35 +97,4 @@ internal object GeminiIntroAnalyzer {
         return result
     }
 
-    private suspend fun execute(request: Request): String = suspendCancellableCoroutine { continuation ->
-        val call = client.newCall(request)
-        continuation.invokeOnCancellation { call.cancel() }
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (!continuation.isCancelled) continuation.resumeWithException(Failure(when (e) {
-                    is java.net.SocketTimeoutException -> FailureKind.TIMEOUT
-                    is java.net.UnknownHostException -> FailureKind.DNS
-                    is javax.net.ssl.SSLException -> FailureKind.TLS
-                    else -> FailureKind.NETWORK
-                }))
-            }
-            override fun onResponse(call: Call, response: Response) {
-                try {
-                    val text = response.use {
-                        if (!it.isSuccessful) throw HttpFailure(it.code)
-                        val source = requireNotNull(it.body).source()
-                        require(!source.request(262_145)) { "Model response too large" }
-                        source.readUtf8()
-                    }
-                    if (!continuation.isCancelled) continuation.resume(text)
-                } catch (error: Exception) {
-                    if (error is HttpFailure) {
-                        if (!continuation.isCancelled) continuation.resumeWithException(error)
-                        return
-                    }
-                    if (!continuation.isCancelled) continuation.resumeWithException(Failure(FailureKind.RESPONSE))
-                }
-            }
-        })
-    }
 }

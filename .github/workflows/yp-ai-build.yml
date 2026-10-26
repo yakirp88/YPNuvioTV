@@ -72,6 +72,7 @@ jobs:
             :app:testFullDebugUnitTest --tests 'com.nuvio.tv.ui.screens.player.SkipIntroVisibilityRulesTest' \
             --tests 'com.nuvio.tv.ui.screens.player.IntroDetectionFailureBoundaryTest' \
             --tests 'com.nuvio.tv.core.diagnostics.YpCrashReportTextTest' \
+            --tests 'com.nuvio.tv.core.intro.GeminiHttpTransportTest' \
             :app:assembleFullDebug --configure-on-demand --max-workers=1 --no-daemon
       - name: Prepare distribution
         if: env.SIGNING_KEY != ''
