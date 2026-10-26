@@ -21,6 +21,7 @@ public class SubtitleEvidenceCheck {
         check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(1000, 3000, "Hello")), 2400000, 0).isEmpty(), "dialog is not an intro");
         check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(1000, 3000, "[music]")), 2400000, 0).get(0).kind == Kind.MUSIC, "music must not imply intro");
         check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(1000, 3000, "<i>[Theme song]</i>")), 2400000, 0).get(0).kind == Kind.INTRO, "opening caption");
+        check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(1000, 3000, "{\\an8}<i>[Theme song]</i>")), 2400000, 0).get(0).kind == Kind.INTRO, "ASS override and HTML markup");
         check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(1000, 3000, "Previously on Example")), 2400000, 0).get(0).kind == Kind.RECAP, "English recap");
         check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(1000, 3000, "\u200fבפרקים הקודמים")), 2400000, 0).get(0).kind == Kind.RECAP, "Hebrew recap + RTL");
         check(SubtitleEvidenceAnalyzer.analyze(Arrays.asList(new Cue(2200000, 2203000, "[End credits]")), 2400000, 0).get(0).kind == Kind.OUTRO, "credits caption");

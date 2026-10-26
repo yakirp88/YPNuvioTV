@@ -41,7 +41,8 @@ public final class SubtitleEvidenceAnalyzer {
         }
     }
 
-    private static final Pattern TAGS = Pattern.compile("<[^>]*>|\\{[^}]*}");
+    // Android uses ICU: a literal right brace must be escaped outside a character class.
+    private static final Pattern TAGS = Pattern.compile("<[^>]*>|\\{[^}]*\\}");
     private static final Pattern RECAP = Pattern.compile(
         "^(?:[\\[({]\\s*)?(?:previously on\\b|previously\\s*[:…]|last time on\\b|"
         + "בפרקים הקודמים|בפרק הקודם|עד כה ב|תקציר הפרקים הקודמים)");

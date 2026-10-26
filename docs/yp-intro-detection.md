@@ -288,3 +288,16 @@ The original 0.2 signer was recovered privately and its certificate fingerprint
 was compared to config/yp-signing-sha256.txt. Local signing followed by a
 checksum/certificate-verified GitHub release import avoids blocking this update
 on web sign-in for Actions secret setup. The key must not appear in artifacts.
+
+### Reproduced Android regex incompatibility
+
+The TAGS regex used an unescaped literal right brace outside a character class.
+The exact original pattern fails ICU4C compilation with U_REGEX_RULE_SYNTAX,
+while the escaped form compiles and removes ASS/HTML markup correctly. Android
+libcore documents this ICU/JDK difference. All seven production constants now
+pass the host ICU compatibility harness, and the old pattern remains a rejected
+regression fixture. The original static initializer would throw an Error rather
+than an Exception, explaining why the per-analysis Exception catch was insufficient.
+A TV playback retest is still required to confirm the reported device symptom.
+
+Reference: https://android.googlesource.com/platform/libcore/+/refs/heads/master/ojluni/src/main/java/java/util/regex/Pattern.java

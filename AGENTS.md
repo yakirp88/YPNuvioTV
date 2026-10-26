@@ -9,3 +9,6 @@
 - config/yp-public-client.properties is a public anonymous client configuration, not a personal key.
 - Do not describe automatic AI reporting or audio analysis as implemented. Confidence calibration and device testing are still outstanding.
 - Report build/publication blockers accurately; a workflow definition is not a successful build or published APK.
+
+- Run `python3 tools/intro-evidence-check/check_android_regex.py` when changing subtitle regexes. Desktop JDK regex checks do not cover Android ICU behavior.
+- Crash diagnostics must stay local and structurally allowlisted: never include exception messages, URLs, credentials, transcripts or raw system traces.

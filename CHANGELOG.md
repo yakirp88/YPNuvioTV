@@ -6,6 +6,10 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [0.3.2] — 2026-10-26
 
+### Fixed
+- Escaped the literal closing brace in the subtitle markup-removal regex. The original pattern is accepted by desktop Java but rejected by Android's ICU backend, causing an ExceptionInInitializerError on first local analysis.
+- Reproduced the old-pattern rejection with ICU4C and added a CI compatibility check of all production regex constants and markup-removal behavior.
+
 ### Added
 - Local crash diagnostics after restart and in YP intro-detection settings: paginated TV screenshots and manual copy of the complete sanitized report.
 - Capture Java exception classes and bounded stack frames while preserving the existing system crash handler. Error messages, raw logcat, account/device identifiers, URLs and API keys are omitted.

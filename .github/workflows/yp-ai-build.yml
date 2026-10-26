@@ -56,6 +56,7 @@ jobs:
           test "$actual" = "$expected"
       - name: Validate analyzer and review rules
         run: |
+          python3 tools/intro-evidence-check/check_android_regex.py
           mkdir -p "$RUNNER_TEMP/yp-core-check"
           javac -d "$RUNNER_TEMP/yp-core-check" \
             app/src/main/java/com/nuvio/tv/core/intro/{SubtitleEvidenceAnalyzer,IntroSubmissionMode,AiSegmentProposal,IntroDetectionPhase,VideoSamplingPlan,SegmentReviewRange}.java \
