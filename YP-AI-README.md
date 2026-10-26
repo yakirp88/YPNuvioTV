@@ -115,3 +115,14 @@ limitation at episode end.
 
 API contract: https://docs.dpaste.org/api/ . A synthetic-content API upload
 and public readback were checked during development; TV testing is pending.
+
+### Publication without an external staging host
+
+The signed-release importer can download the successful GitHub Actions build
+artifact using its repository token and reconstruct the privately signed APK
+from `config/yp-apk-signature-delta.json`. The delta contains only copy ranges
+and public bytes from the distributable signed APK (certificates, signatures
+and ZIP metadata). It contains no private signing key. The importer checks
+the original artifact hash, source SHA and successful build conclusion, then
+checks the reconstructed APK hash, original certificate and manifest before
+publishing. This avoids temporary file-host download failures.
