@@ -20,6 +20,9 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 - Local sanitized detection status in screenshot/copy diagnostics. No API response bodies, keys or media URLs are included.
 
 ### Verification
+- Published 0.3.3 (500010) through successful workflow 40300162329. Public APK download matched SHA-256 53a9af32dc89e0fc12cf5293a0b2fd5b66271ecdd372416e11efa46f53e65287.
+- Downloader code 6153935 points to the immutable 0.3.3 GitHub APK.
+- Direct GitHub artifact reconstruction avoids external staging hosts. Release anchor 0c9d3d2720df591c1b8c9ec96dc82924ed56ca1d differs from tested source only in approved default workflow definitions; application source equivalence was verified.
 - GitHub Actions run 40283797963 passed the full Android build and selected unit suites, including completion identity, journal bounds/privacy and upload-link validation.
 - Passed 61 analyzer/review checks and ICU compatibility checks. Synthetic dpaste upload and public readback succeeded.
 - Device root cause is not yet confirmed. The completion race and silent-error paths were found by code inspection; user playback testing remains necessary.
