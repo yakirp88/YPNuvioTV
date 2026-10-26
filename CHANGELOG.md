@@ -6,6 +6,10 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [0.3.5] — 2026-10-26
 
+### Distribution
+- Published signed version code 500012 through successful workflow 40372432090. Public APK full download matched SHA-256 0336e2ac6647aa5a7211b763aeb562c645c545ada80bf37ebe8dc5daccb21491 (155980648 bytes).
+- Downloader code 6673362 was verified against the immutable GitHub 0.3.5 APK URL. Release anchor 403e0cc36b4fd2b40f5ea9e246a083bc77ed4975 has identical non-workflow source to tested commit a70fd2e73140e63577082a8185b7588fd358c584.
+
 ### Fixed
 - Device log hfk22 reached 24 extracted frames, then failed with network_timeout after about 10.6 seconds. The cloud client set only the total deadline; OkHttp's 10-second read/write defaults still applied. Explicit budgets are now connect 20s, upload 60s, response read 120s and total 180s.
 - Preserve timeout/network classification when a response body fails mid-read; classify the total call deadline as a timeout too. Cancellation still cancels the underlying HTTP call; retries and redirects remain disabled.

@@ -1,8 +1,8 @@
 > **Nuvio YP AI fork** — development branch: `yp/ai-intro`.
-> [Download 0.3.4 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.4/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
-> Version 0.3.4 preserves diagnostic logs across review rebinding and distinguishes cloud transport, response/output and native media extraction failures. The detection ring remains at the top-left. Device playback verification is still needed. Audio detection and automatic AI publishing are not implemented.
+> [Download 0.3.5 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.5/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
+> Version 0.3.5 fixes the short cloud read/write defaults, preserves network timeout classification and logs actual visual requests/results. Android build and delayed-response/deadline/cancellation/body-timeout tests passed. Device cloud-analysis verification is still needed. Audio detection and automatic AI publishing are not implemented.
 
-> Downloader code: **9544137** — YP AI 0.3.4, version code 500011. Updates 0.2/0.3.2 in place using the same signing certificate.
+> Downloader code: **6673362** — YP AI 0.3.5, version code 500012. Updates previous YP AI versions in place using the same signing certificate.
 
 <div align="center">
 
