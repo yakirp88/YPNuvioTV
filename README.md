@@ -1,8 +1,8 @@
 > **Nuvio YP AI fork** — development branch: `yp/ai-intro`.
-> [Download 0.3.7 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.7/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
-> Version 0.3.7 adds independent embedded text subtitle acquisition, external subtitle discovery with SDH preference/timing checks, and bounded Google model fallback after availability errors. Changing viewing subtitles no longer cancels analysis. Toggle the player bug icon for live actions/results and the cloud icon for a small inference test. Android build and selected regression suites passed; actual device extraction, external provider access and successful Google inference need device verification. Bitmap OCR, audio detection, adaptive video refinement and automatic AI publishing are not implemented.
+> [Download 0.3.8 APK](https://github.com/yakirp88/YPNuvioTV/releases/download/yp-ai-v0.3.8/Nuvio-YP.apk) · [Releases](https://github.com/yakirp88/YPNuvioTV/releases) · [Changelog](CHANGELOG.md) · [Build/signing guide](YP-AI-README.md)
+> Version 0.3.8 searches independent subtitle candidates across languages without viewing-addon filters, preserves SDH metadata, reserves external-provider capacity and reports each candidate's description/timing outcome. Available selected/embedded captions can supply additional timing references when indexes are missing. Toggle the player bug icon for live actions/results. Android build and selected regression suites passed; real SDH availability, timing accuracy and detection results require device testing. No bitmap OCR, audio detector or automatic AI publication.
 
-> Downloader code: **8875821** — YP AI 0.3.7, version code 500022. Updates previous YP AI versions in place using the same signing certificate.
+> Downloader code: **1344075** — YP AI 0.3.8, version code 500023. Updates previous YP AI versions in place using the same signing certificate.
 
 <div align="center">
 

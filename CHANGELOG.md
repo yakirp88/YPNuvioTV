@@ -6,6 +6,10 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [0.3.8] — 2026-10-27
 
+### Distribution
+- Published signed version code 500023 through successful workflow 40418562737. Public APK full download matched SHA-256 86344d76328616ba08945c331c10cde72bee496f314fb0fa4b3b34b2d47d67ab (156033896 bytes).
+- Downloader code 1344075 was verified against the immutable GitHub 0.3.8 APK URL. Release anchor f22c4ed1959b81a3d4868a4a418fd81674aad070 has identical non-workflow source to tested commit 28fcaed7d5a423238c35bb43f746c3934a8f07ae.
+
 ### Fixed
 - Device log ijHDF found 16 independent subtitle options but only examined eight, rejected seven and chose the viewing caption with zero descriptive cues. Preserve independent-provider label/SDH flags, inspect up to 24 independent and eight installed options with language diversity, and remove the English preference. Discovery does not use viewing-language or installed-addon filters.
 - When embedded indexes are unavailable, use already timed embedded text or the explicitly selected/delayed viewing caption as additional timestamp references. SDH candidates still require strong alignment before use; unknown timing is never silently treated as correct.
