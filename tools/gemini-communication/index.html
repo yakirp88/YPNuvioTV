@@ -1,0 +1,66 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://generativelanguage.googleapis.com; img-src data:; base-uri 'none'; form-action 'none'"><title>בדיקת תקשורת Gemini · YP</title><style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#0b1320;color:#ebf1fa}*{box-sizing:border-box}body{margin:0;padding:30px 18px}main{max-width:860px;margin:auto}header{margin-bottom:26px}.eyebrow{color:#68ddc2;font-size:13px;letter-spacing:1px}h1{font-size:32px;margin:10px 0}p{line-height:1.7;color:#b6c5d9;margin:8px 0}.card{background:#131f30;border:1px solid #2b3c54;border-radius:16px;padding:22px;margin:18px 0}label{display:block;margin:12px 0}input[type=password]{width:100%;padding:14px;border:1px solid #465b76;border-radius:9px;background:#0b1320;color:white;font-size:16px}input[type=checkbox]{accent-color:#68ddc2;width:18px;height:18px;vertical-align:middle;margin-inline-end:8px}button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:12px 20px;background:#68ddc2;color:#09271f;font-weight:700;margin:5px 0 5px 8px}button.secondary{background:#283b54;color:#eef4fc}button:disabled{opacity:.4;cursor:default}small{display:block;color:#a2b2c8;line-height:1.6}.models{display:flex;gap:20px;flex-wrap:wrap}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:right;font-size:14px}th,td{padding:12px 8px;border-bottom:1px solid #2b3c54;white-space:nowrap}th{color:#a2b2c8}.ok{color:#68ddc2}.bad{color:#ffad9b}#progress{min-height:30px;margin-top:12px}#summary{white-space:pre-wrap}code{direction:ltr;unicode-bidi:isolate;font-size:13px}footer{font-size:13px;color:#9fb0c8;margin:25px 0}.warning{border-inline-start:3px solid #e9b96e;padding-inline-start:12px}a{color:#68ddc2} @media(max-width:540px){h1{font-size:26px}.card{padding:16px}body{padding:18px 12px}}
+</style></head><body><main><header><div class="eyebrow">YP · CONNECTION LAB · 1.0.0</div><h1>בדיקת תקשורת Gemini</h1><p>בדיקה עצמאית מחוץ לנוביו: משווים מודלים, חשיבה, JSON ותמונות כדי לזהות היכן הבקשה נעצרת.</p></header>
+<section class="card"><label for="key">מפתח Gemini API</label><input id="key" type="password" autocomplete="off" spellcheck="false" dir="ltr" placeholder="הדבק כאן את המפתח שלך"><small>המפתח נשאר בזיכרון העמוד ונשלח ישירות לגוגל בכותרת הבקשה. הוא אינו נשמר בקובץ, בדוח או באחסון הדפדפן. העמוד אינו מעלה מידע לשרת אחר.</small><div class="models"><label><input id="m38" type="checkbox" checked><code>Gemini 3.8 Flash</code></label><label><input id="m36" type="checkbox" checked><code>Gemini 3.6 Flash</code></label></div><label><input id="large" type="checkbox">הוסף בדיקת עומס עם 24 תמונות מלאכותיות לכל מודל</label><p class="warning">הבדיקה מבצעת עד 12 בקשות API, או עד 14 עם בדיקת העומס. השימוש עשוי להיות מחויב בחשבון ה־API. נשלחים רק טקסט בדיקה ותמונות שנוצרו בעמוד.</p><button id="run">התחל בדיקה</button><button id="stop" class="secondary" disabled>עצור</button><button id="download" class="secondary" disabled>הורד דוח מסונן</button><div id="progress" role="status" aria-live="polite">מוכן לבדיקה.</div></section>
+<section class="card"><div class="table-wrap"><table><thead><tr><th>מודל</th><th>בדיקה</th><th>תוצאה</th><th>HTTP</th><th>שניות</th></tr></thead><tbody id="results"></tbody></table></div><p id="summary">הצלחה דורשת תשובה מלאה ותוכן בדיקה תואם. HTTP 200 לבדו אינו מספיק.</p></section><footer>פתח את הקובץ בדפדפן במחשב. אם הדפדפן חוסם את הבקשה, התוצאה תסומן כ״רשת או CORS״; במקרה כזה השתמש בכלי Python המצורף. הצלחה במחשב אינה מוכיחה תקינות ברשת של הטלוויזיה.</footer></main>
+<script id="probe-core">
+(()=>{
+const MODELS=['gemini-3.8-flash','gemini-3.6-flash'],BASE='https://generativelanguage.googleapis.com/v1beta/models/';
+const statuses=new Set(['INVALID_ARGUMENT','PERMISSION_DENIED','UNAUTHENTICATED','RESOURCE_EXHAUSTED','NOT_FOUND','UNAVAILABLE','DEADLINE_EXCEEDED','INTERNAL','FAILED_PRECONDITION']);
+const reasons=new Set(['API_KEY_INVALID','API_KEY_EXPIRED','API_KEY_SERVICE_BLOCKED','API_KEY_HTTP_REFERRER_BLOCKED','API_KEY_IP_ADDRESS_BLOCKED','API_KEY_ANDROID_APP_BLOCKED','SERVICE_DISABLED','BILLING_DISABLED']);
+const finishes=new Set(['STOP','MAX_TOKENS','SAFETY','RECITATION','BLOCKLIST','PROHIBITED_CONTENT','OTHER']);
+function payload(stage,nonce,card){
+ const structured=stage.startsWith('structured_')||stage.startsWith('visual_'),visual=stage.startsWith('visual_');
+ const prompt=structured?`Return only JSON with nonce equal to ${nonce}${visual?', and color naming the center rectangle color in English.':'.'}`:`Reply with exactly ${nonce} and no other text.`;
+ const parts=[{text:prompt}];if(visual)for(let i=0;i<(stage==='visual_24'?24:1);i++)parts.push({inlineData:{mimeType:'image/png',data:card}});
+ const config={maxOutputTokens:stage==='plain_default'?256:4096};if(['plain_low','structured_low','visual_one','visual_24'].includes(stage))config.thinkingConfig={thinkingLevel:'low'};
+ if(structured){const properties={nonce:{type:'string'}};if(visual)properties.color={type:'string'};config.responseFormat={text:{mimeType:'APPLICATION_JSON',schema:{type:'object',properties,required:Object.keys(properties),additionalProperties:false}}};}
+ return {contents:[{role:'user',parts}],generationConfig:config};
+}
+function classify(body,stage,nonce){try{
+ const doc=JSON.parse(body),first=doc?.candidates?.[0];if(!first)return {outcome:'no_candidates'};
+ const finish=first.finishReason||'',text=(first.content?.parts||[]).filter(p=>!p.thought&&typeof p.text==='string').map(p=>p.text).join('');
+ const result={finish:finishes.has(finish)?finish:'UNKNOWN',visible_characters:text.length,usage:{}};
+ for(const k of ['promptTokenCount','candidatesTokenCount','thoughtsTokenCount','totalTokenCount']){const v=doc.usageMetadata?.[k];if(Number.isInteger(v)&&v>=0&&v<=10000000)result.usage[k]=v;}
+ if(finish!=='STOP')result.outcome=finish==='MAX_TOKENS'?'output_limit':'incomplete_or_blocked';
+ else if(!text.trim())result.outcome='empty_visible_output';else{let match;if(stage.startsWith('plain_'))match=text.trim()===nonce;else{const a=JSON.parse(text);match=a?.nonce===nonce;if(stage.startsWith('visual_'))match=match&&String(a.color||'').trim().toLowerCase()==='red';}result.outcome=match?'verified':'answer_mismatch';}return result;
+}catch{return {outcome:'response_invalid'};}}
+function safeHttp(body,status){const r={outcome:'http_error',http_status:status};try{const e=JSON.parse(body)?.error,s=e?.status;if(statuses.has(s))r.api_status=s;for(const d of e?.details||[]){if(reasons.has(d?.reason)){r.api_reason=d.reason;break;}}}catch{}return r;}
+async function probe({key,model,stage,nonce,card='',signal,fetchImpl=fetch,timeoutMs}){
+ if(!MODELS.includes(model))throw Error('Unsupported model');const start=performance.now(),controller=new AbortController();let expired=false;
+ const abort=()=>controller.abort();if(signal?.aborted)abort();signal?.addEventListener('abort',abort,{once:true});
+ const timer=setTimeout(()=>{expired=true;controller.abort();},timeoutMs||(stage.startsWith('visual_')?90000:35000));
+ const body=JSON.stringify(payload(stage,nonce,card)),result={model,stage,request_bytes:new TextEncoder().encode(body).length};
+ try{const response=await fetchImpl(BASE+model+':generateContent',{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body,redirect:'error',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
+ result.headers_ms=Math.round(performance.now()-start);result.http_status=response.status;
+ const reader=response.body.getReader(),chunks=[];let size=0;const limit=response.ok?262144:16384;
+ while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit){await reader.cancel();result.outcome='response_too_large';break;}chunks.push(value);}
+ result.response_bytes=size;if(!result.outcome){const bytes=new Uint8Array(size);let at=0;for(const c of chunks){bytes.set(c,at);at+=c.length;}const text=new TextDecoder().decode(bytes);Object.assign(result,response.ok?classify(text,stage,nonce):safeHttp(text,response.status));}
+ }catch{result.outcome=expired?'timeout':signal?.aborted?'cancelled':'browser_network_or_cors';}
+ finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);result.elapsed_ms=Math.round(performance.now()-start);}return result;
+}
+globalThis.GeminiProbe={MODELS,payload,classify,safeHttp,probe};
+})();
+</script>
+<script>
+const $=id=>document.getElementById(id),names={plain_default:'טקסט · הגדרות ברירת מחדל',plain_budget:'טקסט · תקציב פלט גדול',plain_low:'טקסט · חשיבה נמוכה',structured_default:'JSON · חשיבה ברירת מחדל',structured_low:'JSON · חשיבה נמוכה',visual_one:'תמונה אחת · חשיבה נמוכה',visual_24:'24 תמונות · חשיבה נמוכה'};
+const outcomes={verified:'תשובה מלאה ותואמת',output_limit:'הסתיימה מגבלת הפלט',empty_visible_output:'אין טקסט תשובה',incomplete_or_blocked:'תשובה לא הושלמה / נחסמה',answer_mismatch:'התקבלה תשובה, תוכן שונה',response_invalid:'מבנה תשובה לא תקין',no_candidates:'אין מועמד לתשובה',http_error:'שגיאת HTTP',timeout:'זמן ההמתנה הסתיים',cancelled:'נעצר',browser_network_or_cors:'רשת או חסימת CORS',response_too_large:'התשובה חורגת מהמגבלה'};
+let report=null,runController=null;
+function card(noise){const c=document.createElement('canvas');c.width=noise?240:32;c.height=noise?120:32;const ctx=c.getContext('2d');if(noise){const data=ctx.createImageData(c.width,c.height);for(let y=0;y<c.height;y++){const row=crypto.getRandomValues(new Uint8Array(c.width*3));for(let x=0;x<c.width;x++){const i=(y*c.width+x)*4;data.data[i]=row[x*3];data.data[i+1]=row[x*3+1];data.data[i+2]=row[x*3+2];data.data[i+3]=255;}}ctx.putImageData(data,0,0);}ctx.fillStyle='#ff0000';if(noise)ctx.fillRect(c.width/4,c.height/4,c.width/2,c.height/2);else ctx.fillRect(0,0,c.width,c.height);return c.toDataURL('image/png').split(',')[1];}
+$('stop').addEventListener('click',()=>runController?.abort());
+$('run').addEventListener('click',async()=>{
+ let key=$('key').value.trim();const models=GeminiProbe.MODELS.filter((_,i)=>$(i===0?'m38':'m36').checked);if(!key||/\s/.test(key)||!models.length){$('progress').textContent='יש להזין מפתח ולבחור מודל אחד לפחות.';return;}
+ $('key').value='';$('results').replaceChildren();$('run').disabled=true;$('stop').disabled=false;$('download').disabled=true;$('key').disabled=true;
+ runController=new AbortController();report={tool_version:'1.0.0',runtime:'browser',started_utc:new Date().toISOString(),results:[]};
+ const stages=['plain_default','plain_budget','plain_low','structured_default','structured_low','visual_one',...($('large').checked?['visual_24']:[])],cards={visual_one:card(false),visual_24:$('large').checked?card(true):''};let stopped=false;
+ try{for(const model of models){for(const stage of stages){if(runController.signal.aborted){stopped=true;break;}$('progress').textContent=`בודק ${model} · ${names[stage]} (${report.results.length+1}/${models.length*stages.length})`;
+ const nonce='YP_'+Array.from(crypto.getRandomValues(new Uint8Array(6)),n=>n.toString(16).padStart(2,'0')).join('');
+ const result=await GeminiProbe.probe({key,model,stage,nonce,card:cards[stage]||'',signal:runController.signal});report.results.push(result);
+ const row=document.createElement('tr');for(const text of [model,names[stage],(outcomes[result.outcome]||'לא ידוע')+(result.api_reason?' · '+result.api_reason:result.api_status?' · '+result.api_status:''),String(result.http_status||'—'),(result.elapsed_ms/1000).toFixed(1)]){const td=document.createElement('td');td.textContent=text;row.append(td);}row.className=result.outcome==='verified'?'ok':'bad';$('results').append(row);
+ if(result.api_reason||[401,403,429].includes(result.http_status)){stopped=true;break;}if(result.http_status===404)break;}if(stopped)break;}
+ $('progress').textContent=runController.signal.aborted?'הבדיקה נעצרה.':'הבדיקה הסתיימה.';
+ const verified=report.results.filter(r=>r.outcome==='verified');$('summary').textContent=`${verified.length} מתוך ${report.results.length} בדיקות קיבלו תשובה מלאה ותואמת. הורד את הדוח ושלח אותו לניתוח. הצלחה של בקשה קטנה אינה מאמתת ניתוח וידאו או את רשת הטלוויזיה.`;
+ }finally{key='';$('key').value='';$('key').disabled=false;$('run').disabled=false;$('stop').disabled=true;$('download').disabled=!report?.results.length;runController=null;}
+});
+$('download').addEventListener('click',()=>{if(!report)return;const blob=new Blob([JSON.stringify(report,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='gemini-communication-report.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+</script></body></html>

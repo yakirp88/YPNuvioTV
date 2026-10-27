@@ -4,6 +4,12 @@ Changes to this AI fork are recorded here. Upstream: NuvioTV 1.1.0-beta.8.
 
 ## [Unreleased]
 
+### Standalone diagnostics 1.0.0 — 2026-10-27
+- Added an independent, local HTML/Python Gemini communication checker outside the player and subtitle pipeline. Compares both fixed models, output budget, default/low thinking, structured JSON and a generated image; optional 24-card test is explicit.
+- Verifies STOP plus actual matching visible output, not HTTP 200 or candidate presence alone. Reports allowlisted outcomes/timings/sizes/token counts; no credentials, raw responses, thoughts, error messages, media or account identifiers. Keys use only Google's HTTPS request header; redirects are refused.
+- Added mock protocol/privacy/deadline tests and a dedicated source-only diagnostics CI/package. Standalone-tool edits no longer trigger an unnecessary Android APK build.
+- Application behavior and APK version are unchanged as requested: live authenticated inference must be verified before integrating any proposed communication fix. No user key is available in this environment. A no-key control received Google's 403/PERMISSION_DENIED; that is not a successful inference test.
+
 ## [0.3.8] — 2026-10-27
 
 ### Distribution
