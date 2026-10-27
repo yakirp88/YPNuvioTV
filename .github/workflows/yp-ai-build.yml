@@ -3,7 +3,7 @@ name: YP AI build and versioned release
 on:
   push:
     branches: [yp/ai-intro]
-    paths-ignore: ['**/*.md', 'config/yp-signed-release.json']
+    paths-ignore: ['**/*.md', 'config/yp-signed-release.json', 'tools/gemini-communication/**']
   workflow_dispatch:
 
 permissions:
